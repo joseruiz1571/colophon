@@ -8,3 +8,6 @@ paths = [
   '''^node_modules/''',
   '''^packages/fixtures/scenarios/evidence-reader\.yaml$'''
 ]
+regexes = [
+  '''FAKEDEMOCREDENTIAL'''
+]

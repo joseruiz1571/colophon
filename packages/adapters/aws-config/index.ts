@@ -1,6 +1,6 @@
 /**
  * AWS configuration adapter — INTERFACE + FIXTURE READER ONLY.
- * No @aws-sdk dependency, no live client, no credentials. The fixture files
+ * No AWS SDK dependency, no live client, no credentials. The fixture files
  * are shaped like the API responses (CloudTrail LookupEvents, IAM
  * GetRolePolicy, S3 GetBucketEncryption) so a live provider could be written
  * against the same interface later; none ships here.
