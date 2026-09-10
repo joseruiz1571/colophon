@@ -67,3 +67,21 @@ deny contains {"rule_id": "COL-REC-SANDBOX-SLASH", "field": "declaration.sandbox
 	some p in object.get(decl.sandbox, "write_paths", [])
 	not endswith(p, "/")
 }
+
+# The gate dispatches sandbox, scope, and destination rules on data_access and
+# on the name prefixes auth. / mail. / net. A tool whose name says "write" but
+# whose declared access does not is a mis-declaration that would silently skip
+# the sandbox rule; refuse it at lint time.
+deny contains {"rule_id": "COL-REC-ACCESS-MISMATCH", "field": "declaration.tools[].data_access", "msg": sprintf("tool %v is named as a write but declares data_access %v", [t.name, t.data_access])} if {
+	some t in decl.tools
+	write_named(t.name)
+	t.data_access != "write"
+}
+
+write_named(name) if endswith(name, ".write")
+
+write_named(name) if endswith(name, ".delete")
+
+write_named(name) if endswith(name, ".put")
+
+write_named(name) if endswith(name, ".create")

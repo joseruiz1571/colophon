@@ -13,7 +13,8 @@ import { join, relative } from "node:path";
 import { verifyPhaseControls, type ControlResult } from "../catalog/checks.ts";
 import { EvidenceStore } from "../evidence/store.ts";
 import { buildAssessmentResults, validateOscal } from "../report/oscal.ts";
-import { verifyTrace } from "../trace/trace.ts";
+import { readTrace, verifyTrace } from "../trace/trace.ts";
+import { loadRecord, verifyRecordHashes } from "../schema/record.ts";
 import { checkManifest, hashFile, listFiles, MANIFEST, SIGNATURE, type Manifest } from "./manifest.ts";
 import { SignError, verifyBlob } from "./sign.ts";
 
@@ -137,17 +138,52 @@ export function verifyBundle(o: VerifyBundleOptions): VerifyOutcome {
     }
   }
 
-  // 4. traces
+  // 4. bundled records: hashes, signature (with the presented key/identity), and the trace's record_sha256 binding
+  const recordsDir = join(o.dir, "records");
+  const recordHashes = new Set<string>();
+  if (existsSync(recordsDir)) {
+    for (const f of listFiles(recordsDir).filter((p) => p.endsWith(".record.json"))) {
+      const rp = join(recordsDir, f);
+      try {
+        const rec = loadRecord(rp);
+        const problem = verifyRecordHashes(rec);
+        if (problem) {
+          failures.push(`record: ${f}: ${problem}`);
+          continue;
+        }
+        const rsig = rp.replace(/\.record\.json$/, ".record.sigstore.json");
+        if (!existsSync(rsig)) {
+          failures.push(`record: ${f}: signature ${relative(o.dir, rsig)} missing`);
+          continue;
+        }
+        if (o.pubkey) verifyBlob({ blob: rp, bundle: rsig, pubkey: o.pubkey });
+        else if (o.certIdentityRegexp && o.oidcIssuer) verifyBlob({ blob: rp, bundle: rsig, certIdentityRegexp: o.certIdentityRegexp, oidcIssuer: o.oidcIssuer });
+        else throw new SignError("no verification material for the record signature");
+        recordHashes.add(rec.canonical_sha256);
+        lines.push(`record: ${f} ok (hashes recompute, signature verifies)`);
+      } catch (e) {
+        failures.push(`record: ${f}: ${(e as Error).message}`);
+      }
+    }
+  }
+
+  // 5. traces: chain, head, and (for gate traces) binding to a bundled record
   const traceDir = join(o.dir, "trace");
   if (existsSync(traceDir)) {
     for (const f of listFiles(traceDir).filter((p) => p.endsWith(".jsonl"))) {
       const tv = verifyTrace(join(traceDir, f));
-      if (tv.ok) lines.push(`trace: ${f} ok (${tv.lines} decisions, chain intact)`);
-      else failures.push(`trace: ${f}: ${tv.reason}`);
+      if (!tv.ok) {
+        failures.push(`trace: ${f}: ${tv.reason}`);
+        continue;
+      }
+      const bound = readTrace(join(traceDir, f)).filter((d) => d.record_sha256);
+      const unbound = bound.filter((d) => !recordHashes.has(d.record_sha256!));
+      if (unbound.length > 0) failures.push(`trace: ${f}: ${unbound.length} decisions carry record_sha256 ${unbound[0]!.record_sha256} which is not a verified bundled record`);
+      else lines.push(`trace: ${f} ok (${tv.lines} decisions, chain intact${tv.sealed ? ", head commitment matches" : ", NO head commitment"}${bound.length ? `, bound to verified record` : ""})`);
     }
   }
 
-  // 5. verification AR outside the bundle
+  // 6. verification AR outside the bundle
   if (o.out) {
     mkdirSync(o.out, { recursive: true });
     const now = new Date().toISOString();

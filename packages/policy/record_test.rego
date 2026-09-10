@@ -88,3 +88,9 @@ test_write_path_without_trailing_slash if {
 	some d in res.denies
 	d.rule_id == "COL-REC-SANDBOX-SLASH"
 }
+
+test_write_named_tool_with_none_access if {
+	res := lint(object.union(good, {"declaration": object.union(good.declaration, {"tools": [{"name": "fs.write", "data_access": "none", "data_classes": []}]})}))
+	some d in res.denies
+	d.rule_id == "COL-REC-ACCESS-MISMATCH"
+}

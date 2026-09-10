@@ -65,7 +65,7 @@ const USAGE = `colophon — signed session packets for AI agent tool use
   declare validate <file>
   record build <declaration> --out <dir>
   record sign <record> --key <cosign.key> [--password <pw>]
-  record verify <record> [--pubkey <cosign.pub>]
+  record verify <record> --pubkey <cosign.pub> | --hash-only
   record lint <record>
   gate serve --record <r> --pubkey <pub> --trace <file> --session <id> [--self-test] --upstream <cmd...>
   upstream demo
@@ -133,8 +133,13 @@ async function main(argv: string[]): Promise<number> {
       const sig = recordSignaturePath(path);
       verifyBlob({ blob: path, bundle: sig, pubkey: pub });
       out(`${path}: hashes ok; signature ok (${basename(sig)} with ${pub})`);
-    } else out(`${path}: hashes ok (no --pubkey given; signature not checked)`);
-    return 0;
+      return 0;
+    }
+    if (flags["hash-only"] === true) {
+      out(`${path}: hashes ok (--hash-only: signature NOT checked)`);
+      return 0;
+    }
+    fail(`${path}: hashes ok, but no --pubkey given and --hash-only not set; refusing to report an unverified record as ok`);
   }
 
   if (cmd === "record" && sub === "lint") {
@@ -267,7 +272,7 @@ async function main(argv: string[]): Promise<number> {
       const key = str(flags, "key");
       signBlobWithKey({ blob: manifest, key, password: str(flags, "password", false), out: sig, signingConfig: offlineSigningConfig(resolve(key, "..")) });
     }
-    out(`SIGNATURE: ${sig}`);
+    out(`written: ${sig} (not yet verified; run bundle verify)`);
     return 0;
   }
 

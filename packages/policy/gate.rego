@@ -172,7 +172,9 @@ destination_of(a) := a.url if {
 	is_string(a.url)
 }
 
+# null delimiters: `*` may cross dots and slashes, so "*@acme.example" admits
+# first.last@acme.example and "https://api.acme.example/*" admits nested paths.
 destination_allowed(dest) if {
 	some pattern in tool.destinations
-	glob.match(pattern, [], dest)
+	glob.match(pattern, null, dest)
 }

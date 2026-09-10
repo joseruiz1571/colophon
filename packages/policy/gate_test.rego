@@ -207,3 +207,11 @@ test_deny_scopes_non_string_entries if {
 	r.effect == "deny"
 	"COL-GATE-SCOPE" in r.rule_ids
 }
+
+test_allow_mail_dotted_local_part if {
+	d("mail.send", {"to": "first.last@acme.example", "subject": "x"}).effect == "allow"
+}
+
+test_allow_fetch_nested_path_with_dot if {
+	d("net.fetch", {"url": "https://api.acme.example/repos/file.json", "data_class": "public"}).effect == "allow"
+}
