@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { argsSha256, redactArgs, sealDecision, type Decision } from "../packages/normalize/decision.ts";
 import { TraceWriter, verifyTrace } from "../packages/trace/trace.ts";
-import { canonicalize } from "../packages/schema/canonical.ts";
+import { canonicalize, sha256Hex } from "../packages/schema/canonical.ts";
 
 const draft = (i: number) => ({ source: "test", effect: "allow" as const, rule_ids: ["T"], reasons: [{ field: "f", value: i }], tool: "t", args_sha256: argsSha256({ i }), ts: "2026-09-10T00:00:00Z", call_index: i });
 
@@ -16,8 +16,13 @@ describe("canonicalize", () => {
 
 describe("redaction", () => {
   test("secret-looking keys and values are replaced, others kept", () => {
-    const r = redactArgs({ path: "/x", token: "abc", note: "FAKE-DEMO-CREDENTIAL-do-not-use-0000", scopes: ["repo:read"] });
-    expect(r).toEqual({ path: "/x", token: "[REDACTED]", note: "[REDACTED]", scopes: ["repo:read"] });
+    const fake = "FAKE-DEMO-CREDENTIAL-do-not-use-0000";
+    const r = redactArgs({ path: "/x", token: "abc", note: fake, scopes: ["repo:read"] });
+    expect(r["path"]).toBe("/x");
+    expect(r["scopes"]).toEqual(["repo:read"]);
+    expect(r["token"]).toBe("sha256:" + sha256Hex("abc"));
+    expect(r["note"]).toBe("sha256:" + sha256Hex(fake));
+    expect(JSON.stringify(r)).not.toContain(fake);
   });
 });
 

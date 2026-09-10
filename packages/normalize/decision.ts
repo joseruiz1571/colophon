@@ -3,7 +3,7 @@
  * hook log, a CloudTrail export — emits exactly this shape, so one catalog can
  * assess any of them.
  */
-import { canonicalSha256, hashWithout } from "../schema/canonical.ts";
+import { canonicalSha256, canonicalize, hashWithout, sha256Hex } from "../schema/canonical.ts";
 import { formatErrors, validateDecision } from "../schema/validate.ts";
 
 export type Effect = "allow" | "deny" | "escalate";
@@ -31,18 +31,22 @@ export type DecisionDraft = Omit<Decision, "this_sha256" | "prev_sha256">;
 const SECRET_KEY = /(token|secret|password|passwd|credential|api[_-]?key|private[_-]?key|authorization|cookie)/i;
 const SECRET_VALUE = /^(ghp_|gho_|github_pat_|sk-|xox[bpa]-|AKIA|-----BEGIN )/;
 
-/** Replace secret-looking values; truncate long strings. Never throws. */
+/** Replace secret-looking values with a commitment (sha256:<hex>) so the packet can prove which value was seen without holding it; truncate long strings. Never throws. */
 export function redactArgs(args: unknown): Record<string, unknown> {
   if (args === null || typeof args !== "object" || Array.isArray(args)) return {};
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(args as Record<string, unknown>)) {
-    if (SECRET_KEY.test(k)) out[k] = "[REDACTED]";
-    else if (typeof v === "string") out[k] = SECRET_VALUE.test(v) ? "[REDACTED]" : v.length > 80 ? v.slice(0, 77) + "..." : v;
-    else if (Array.isArray(v)) out[k] = v.map((x) => (typeof x === "string" ? (SECRET_VALUE.test(x) ? "[REDACTED]" : x) : x));
+    if (SECRET_KEY.test(k)) out[k] = commit(v);
+    else if (typeof v === "string") out[k] = SECRET_VALUE.test(v) ? commit(v) : v.length > 80 ? v.slice(0, 77) + "..." : v;
+    else if (Array.isArray(v)) out[k] = v.map((x) => (typeof x === "string" && SECRET_VALUE.test(x) ? commit(x) : x));
     else if (v !== null && typeof v === "object") out[k] = redactArgs(v);
     else out[k] = v;
   }
   return out;
+}
+
+function commit(v: unknown): string {
+  return "sha256:" + sha256Hex(typeof v === "string" ? v : canonicalize(v ?? null));
 }
 
 export function argsSha256(args: unknown): string {
