@@ -28,7 +28,7 @@ const tmp = mkdtempSync(join(tmpdir(), "colophon-flip-"));
 const policy = join(tmp, "gate.rego");
 copyFileSync(GATE_POLICY, policy);
 const original = readFileSync(policy, "utf8");
-const edited = original.replace("\tstartswith(p, prefix)\n", "\ttrue # FLIP: every traversal-free path is treated as inside the sandbox\n");
+const edited = original.replace("\tstartswith(p, dir_prefix(prefix))\n", "\ttrue # FLIP: every traversal-free path is treated as inside the sandbox\n");
 if (edited === original) throw new Error("policy line to edit not found");
 writeFileSync(policy, edited);
 

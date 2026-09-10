@@ -52,3 +52,18 @@ Rationale: creating a public remote is outward-facing and was not part of the br
 
 ### D17 · Installed nothing
 Bun 1.4.0, OPA 1.19.1, Cosign 3.1.3, jq 1.8.2, and gitleaks 8.30.1 were already present on the build machine; CI pins the same Bun, OPA, and Cosign versions and installs gitleaks at the same version.
+
+### D18 · Second look: destination must be exactly one key
+An independent read-only review (in-family, non-forked) found that `destination_of` preferred `to` over `url` for every tool, so a fetch could pass the destination check on `to` while the upstream fetched `url`. Rationale: a call to a destination-bound tool now needs exactly one of `to`/`url`; none or both is refused with `COL-GATE-DESTINATION` (value `ambiguous destination: [...]`). Regression tests added.
+
+### D19 · Sandbox write paths are directories, and non-string scopes are refused
+Same review: `write_paths: ["out/notifier"]` admitted `out/notifier-evil/x` under a bare `startswith`. Rationale: the policy normalizes every prefix to end in `/` (`dir_prefix`), and record lint additionally refuses a write path without a trailing slash (`COL-REC-SANDBOX-SLASH`). A `scopes` array carrying a non-string entry is refused rather than ignored.
+
+### D20 · Trace head commitment, rewritten after every decision
+Same review: a chain with no terminal commitment verifies after its last N lines are removed. Rationale: `TraceWriter` rewrites `<trace>.head.json` (line count, last hash) after every append; `verifyTrace` checks it and reports `sealed`; the packet builder refuses a trace without one; a writer refuses to resume a trace that does not verify. The head is written by the same process as the trace and covered by the bundle manifest, so it is a commitment against post-hoc truncation, not against a hostile writer — the proves table already says the packet proves what the PEP recorded, not that everything passed through it. First attempt sealed on transport close, which never ran because the MCP client transport SIGTERMs the child on close; the running commitment needs no close hook.
+
+### D21 · Redaction never truncates policy-bearing keys
+Same review: an 80-character truncation with a `...` marker made a compliant long path re-evaluate as a traversal. Rationale: `path`, `to`, `url`, `scopes`, `data_class`, `repo`, `org` are never truncated; other strings are clipped at 200 characters with a `[+N chars]` marker that contains no dots.
+
+### D22 · Two probes rewritten because they passed vacuously
+Same review: the S11 grep excluded any line containing `effect`, so a hard-coded verdict passed it; the S19 probe broke cosign at `version`, so the sign failure happened before any packet existed. Rationale: S11 is now `tests/no-ts-verdicts.ts`, which flags any effect literal outside the one fail-closed deny and the adapters' translation of a foreign verdict field (it catches a planted `if (name === "mail.send") return { effect: "deny" }`); S19 uses `tests/fake-cosign-signfail.sh`, which passes every cosign command except signing a bundle manifest, so records sign, the session runs, the bundle is created, and only then does signing fail — the probe asserts the bundle and trace exist, no `manifest.sigstore.json` does, and no `SIGNATURE:` line was printed.
