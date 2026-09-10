@@ -2,12 +2,12 @@ title = "colophon"
 [extend]
 useDefault = true
 [allowlist]
-description = "Demo and test signing keys are generated at run time under out/ and never committed; synthetic fixture tokens use the ghp_ prefix with a documented FAKE marker."
+description = "Demo and test signing keys are generated at run time under out/ and never committed; the synthetic fixture credential carries a FAKE-DEMO-CREDENTIAL marker and is shaped unlike any real token."
 paths = [
   '''^out/''',
   '''^node_modules/''',
   '''^packages/fixtures/scenarios/evidence-reader\.yaml$'''
 ]
 regexes = [
-  '''FAKEDEMOCREDENTIAL'''
+  '''FAKE-DEMO-CREDENTIAL'''
 ]

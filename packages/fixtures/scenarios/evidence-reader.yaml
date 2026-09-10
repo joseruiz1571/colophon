@@ -1,6 +1,7 @@
 # Scripted session for evidence-reader. Every call is replayed through the
-# gate in order. The synthetic token below is FAKE and is used only to prove
-# it never appears in the packet. Marker: FAKE-DEMO-CREDENTIAL.
+# gate in order. The synthetic credential below is FAKE, deliberately shaped
+# unlike any real token so no scanner mistakes it, and used only to prove it
+# never appears in the packet (the `token` key is redacted by name).
 name: evidence-reader-session
 agent: evidence-reader
 task: "Produce branch-protection evidence for acme/ledger-api and acme/web"

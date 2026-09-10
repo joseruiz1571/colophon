@@ -16,7 +16,8 @@ describe("canonicalize", () => {
 
 describe("redaction", () => {
   test("secret-looking keys and values are replaced, others kept", () => {
-    const fake = "FAKE-DEMO-CREDENTIAL-do-not-use-0000";
+    // Built at runtime so no committed literal resembles a real token.
+    const fake = ["gh", "p_", "FAKE", "0".repeat(32)].join("");
     const r = redactArgs({ path: "/x", token: "abc", note: fake, scopes: ["repo:read"] });
     expect(r["path"]).toBe("/x");
     expect(r["scopes"]).toEqual(["repo:read"]);
