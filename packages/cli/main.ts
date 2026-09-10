@@ -194,7 +194,7 @@ async function main(argv: string[]): Promise<number> {
     const path = more[0] ?? fail("trace verify <file>");
     const v = verifyTrace(path);
     if (!v.ok) fail(`${path}: chain broken at ${v.reason}`);
-    out(`${path}: ${v.lines} decisions; schema: ok; chain: ok`);
+    out(`${path}: ${v.lines} decisions; schema: ok; chain: ok; sealed: ${v.sealed ? "yes" : "no"}`);
     return 0;
   }
 
@@ -208,6 +208,7 @@ async function main(argv: string[]): Promise<number> {
       rmSync(tracePath, { force: true });
       const w = new TraceWriter(tracePath);
       for (const d of n.drafts) w.append(d);
+    w.seal();
       out(`${tracePath}: ${n.drafts.length} decisions from ${src} (source claude-hook)`);
       return 0;
     }
@@ -217,6 +218,7 @@ async function main(argv: string[]): Promise<number> {
       rmSync(tracePath, { force: true });
       const w = new TraceWriter(tracePath);
       for (const d of n.drafts) w.append(d);
+    w.seal();
       mkdirSync(join(dir, "evidence-raw"), { recursive: true });
       for (const [i, e] of n.evidence.entries()) await Bun.write(join(dir, "evidence-raw", `${i}-${e.kind}.json`), JSON.stringify(e.payload, null, 2) + "\n");
       out(`${tracePath}: ${n.drafts.length} decisions, ${n.evidence.length} evidence items from ${src} (source aws-config, fixture only)`);

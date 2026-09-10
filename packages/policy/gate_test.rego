@@ -174,3 +174,36 @@ test_every_verdict_has_rule_and_reason if {
 	count(r.reasons) > 0
 	count(r.reasons[0].field) > 0
 }
+
+# ---- second-look regressions (2026-09-10) ----
+test_deny_destination_ambiguous_to_and_url if {
+	r := d("net.fetch", {"to": "https://api.acme.example/ok", "url": "https://evil.example/exfil", "data_class": "public"})
+	r.effect == "deny"
+	"COL-GATE-DESTINATION" in r.rule_ids
+	some reason in r.reasons
+	startswith(reason.value, "ambiguous destination")
+}
+
+test_deny_mail_with_url_and_to if {
+	r := d("mail.send", {"to": "team@acme.example", "url": "https://evil.example"})
+	"COL-GATE-DESTINATION" in r.rule_ids
+}
+
+test_deny_sandbox_sibling_prefix if {
+	rec := object.union(record, {"declaration": object.union(record.declaration, {"sandbox": {"write_paths": ["out/evidence-reader"]}})})
+	r := gate.decision with input as {"record": rec, "call": {"name": "fs.write", "arguments": {"path": "out/evidence-reader-evil/x.txt", "data_class": "internal"}}, "context": ctx}
+	r.effect == "deny"
+	"COL-GATE-SANDBOX" in r.rule_ids
+}
+
+test_allow_sandbox_prefix_without_slash_inside if {
+	rec := object.union(record, {"declaration": object.union(record.declaration, {"sandbox": {"write_paths": ["out/evidence-reader"]}})})
+	r := gate.decision with input as {"record": rec, "call": {"name": "fs.write", "arguments": {"path": "out/evidence-reader/x.txt", "data_class": "internal"}}, "context": ctx}
+	r.effect == "allow"
+}
+
+test_deny_scopes_non_string_entries if {
+	r := d("auth.request_scopes", {"scopes": ["repo:read", 42]})
+	r.effect == "deny"
+	"COL-GATE-SCOPE" in r.rule_ids
+}

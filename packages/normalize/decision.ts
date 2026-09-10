@@ -30,6 +30,14 @@ export type DecisionDraft = Omit<Decision, "this_sha256" | "prev_sha256">;
 
 const SECRET_KEY = /(token|secret|password|passwd|credential|api[_-]?key|private[_-]?key|authorization|cookie)/i;
 const SECRET_VALUE = /^(ghp_|gho_|github_pat_|sk-|xox[bpa]-|AKIA|-----BEGIN )/;
+/** Keys the policy reads. Never truncated, so re-evaluation sees exactly what the gate saw. */
+const POLICY_KEYS = new Set(["path", "to", "url", "scopes", "data_class", "repo", "org"]);
+const MAX_STRING = 200;
+
+function clip(k: string, v: string): string {
+  if (POLICY_KEYS.has(k) || v.length <= MAX_STRING) return v;
+  return v.slice(0, MAX_STRING) + ` [+${v.length - MAX_STRING} chars]`;
+}
 
 /** Replace secret-looking values with a commitment (sha256:<hex>) so the packet can prove which value was seen without holding it; truncate long strings. Never throws. */
 export function redactArgs(args: unknown): Record<string, unknown> {
@@ -37,7 +45,7 @@ export function redactArgs(args: unknown): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(args as Record<string, unknown>)) {
     if (SECRET_KEY.test(k)) out[k] = commit(v);
-    else if (typeof v === "string") out[k] = SECRET_VALUE.test(v) ? commit(v) : v.length > 80 ? v.slice(0, 77) + "..." : v;
+    else if (typeof v === "string") out[k] = SECRET_VALUE.test(v) ? commit(v) : clip(k, v);
     else if (Array.isArray(v)) out[k] = v.map((x) => (typeof x === "string" && SECRET_VALUE.test(x) ? commit(x) : x));
     else if (v !== null && typeof v === "object") out[k] = redactArgs(v);
     else out[k] = v;

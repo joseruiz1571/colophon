@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { argsSha256, redactArgs, sealDecision, type Decision } from "../packages/normalize/decision.ts";
-import { TraceWriter, verifyTrace } from "../packages/trace/trace.ts";
+import { headPath, TraceWriter, verifyTrace } from "../packages/trace/trace.ts";
 import { canonicalize, sha256Hex } from "../packages/schema/canonical.ts";
 
 const draft = (i: number) => ({ source: "test", effect: "allow" as const, rule_ids: ["T"], reasons: [{ field: "f", value: i }], tool: "t", args_sha256: argsSha256({ i }), ts: "2026-09-10T00:00:00Z", call_index: i });
@@ -66,6 +66,30 @@ describe("trace chain", () => {
     const v = verifyTrace(p);
     expect(v.ok).toBe(false);
     if (!v.ok) expect(v.line).toBe(2);
+  });
+
+  test("a sealed trace detects truncation of its last lines", () => {
+    const dir = mkdtempSync(join(tmpdir(), "colophon-trace-"));
+    const p = join(dir, "t.jsonl");
+    const w = new TraceWriter(p);
+    for (let i = 0; i < 4; i++) w.append(draft(i));
+    w.seal();
+    expect(verifyTrace(p)).toMatchObject({ ok: true, sealed: true });
+    const lines = readFileSync(p, "utf8").split("\n").filter(Boolean);
+    writeFileSync(p, lines.slice(0, 3).join("\n") + "\n");
+    const v = verifyTrace(p);
+    expect(v.ok).toBe(false);
+    if (!v.ok) expect(v.reason).toMatch(/seal says 4 lines, trace has 3/);
+    expect(() => new TraceWriter(p)).toThrow(/does not verify/);
+  });
+
+  test("a trace whose head commitment was removed verifies but reports sealed: false (and the packet refuses it)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "colophon-trace-"));
+    const p = join(dir, "t.jsonl");
+    new TraceWriter(p).append(draft(0));
+    expect(verifyTrace(p)).toMatchObject({ ok: true, sealed: true });
+    rmSync(headPath(p));
+    expect(verifyTrace(p)).toMatchObject({ ok: true, sealed: false });
   });
 
   test("sealDecision validates the schema", () => {

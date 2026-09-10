@@ -32,7 +32,7 @@ const done = rows.filter((r) => r.includes("| done |")).length;
 const partial = rows.filter((r) => r.includes("| partial |")).length;
 const out = `# STATUS
 
-Probe run: \`bun tests/probes.ts\` at HEAD \`${probes.head}\`, ${probes.ran_at}, from a fresh \`git clone\` into a temp directory with \`bun install --frozen-lockfile\`. Bun 1.4.0, OPA 1.19.1, Cosign v3.1.3, jq 1.8.2, gitleaks 8.30.1, macOS. Results file: \`out/probes.json\` (gitignored; regenerate with the command above).
+Probe run: \`bun tests/probes.ts\` at HEAD \`${probes.head}\`, ${probes.ran_at}, from a fresh \`git clone\` into a temp directory with \`bun install --frozen-lockfile\`. Bun 1.4.0, OPA 1.19.1, Cosign v3.1.3, jq 1.8.2, gitleaks 8.30.1, macOS. Results file: \`out/probes.json\` (gitignored; regenerate with the command above). This file is generated from that run and committed afterwards, so the HEAD it cites is the commit immediately before the one that adds it; rerunning the probes at the STATUS commit itself is how a reader confirms nothing moved.
 
 A row is \`done\` only if its probe passed in that run. \`partial\` means the probe passed but the claim's full meaning was not exercised, with the reason stated. \`not-started\` means the probe failed or did not run.
 

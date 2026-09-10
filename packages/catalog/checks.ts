@@ -113,8 +113,11 @@ const checks: Record<string, Check> = {
   },
 
   "trace-chain-intact": (ctx, control) => {
+    if (ctx.trace.ok && !ctx.trace.sealed) {
+      return { control, state: "not-satisfied", rationale: `${ctx.trace.lines} decisions chain correctly but the trace carries no head commitment, so lines removed from its end would be undetectable.`, cited: [ctx.ids.trace] };
+    }
     if (ctx.trace.ok) {
-      return { control, state: "satisfied", rationale: `${ctx.trace.lines} decisions; every this_sha256 recomputes and every prev_sha256 links to its predecessor.`, cited: [ctx.ids.trace] };
+      return { control, state: "satisfied", rationale: `${ctx.trace.lines} decisions; every this_sha256 recomputes, every prev_sha256 links to its predecessor, and the head commitment matches the line count and last hash.`, cited: [ctx.ids.trace] };
     }
     return { control, state: "not-satisfied", rationale: `Chain broken: ${ctx.trace.reason}`, cited: [ctx.ids.trace] };
   },

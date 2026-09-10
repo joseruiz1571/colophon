@@ -15,7 +15,7 @@ import type { Decision } from "../normalize/decision.ts";
 import { buildNarrative } from "../report/narrative.ts";
 import { buildAssessmentResults, validateOscal } from "../report/oscal.ts";
 import type { ColophonRecord } from "../schema/record.ts";
-import { readTrace, verifyTrace } from "../trace/trace.ts";
+import { headPath, readTrace, verifyTrace } from "../trace/trace.ts";
 
 export type Signer =
   | { mode: "key"; key: string; pub: string; password: string; signingConfig: string }
@@ -59,7 +59,9 @@ export function assessToDir(i: Omit<PacketInput, "signer" | "outRoot" | "name"> 
   const start = new Date().toISOString();
 
   const traceName = basename(i.tracePath);
+  if (!existsSync(headPath(i.tracePath))) throw new Error(`trace is not sealed (${headPath(i.tracePath)} missing); refusing to package a trace without its head commitment`);
   copyFileSync(i.tracePath, join(stage, "trace", traceName));
+  copyFileSync(headPath(i.tracePath), join(stage, "trace", basename(headPath(i.tracePath))));
   copyFileSync(CATALOG_PATH, join(stage, "catalog", "controls.yaml"));
   if (i.record) {
     mkdirSync(join(stage, "records"), { recursive: true });

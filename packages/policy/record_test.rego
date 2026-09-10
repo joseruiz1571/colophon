@@ -82,3 +82,9 @@ test_wrong_record_type if {
 	some d in res.denies
 	d.rule_id == "COL-REC-TYPE"
 }
+
+test_write_path_without_trailing_slash if {
+	res := lint(object.union(good, {"declaration": object.union(good.declaration, {"sandbox": {"write_paths": ["out/x"]}})}))
+	some d in res.denies
+	d.rule_id == "COL-REC-SANDBOX-SLASH"
+}

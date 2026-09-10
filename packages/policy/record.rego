@@ -62,3 +62,8 @@ deny contains {"rule_id": "COL-REC-DESTINATIONS-REQUIRED", "field": "declaration
 sending_tool(name) if startswith(name, "mail.")
 
 sending_tool(name) if startswith(name, "net.")
+
+deny contains {"rule_id": "COL-REC-SANDBOX-SLASH", "field": "declaration.sandbox.write_paths", "msg": sprintf("write path %v must end with / (a directory, not a string prefix)", [p])} if {
+	some p in object.get(decl.sandbox, "write_paths", [])
+	not endswith(p, "/")
+}

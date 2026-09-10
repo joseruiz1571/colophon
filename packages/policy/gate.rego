@@ -73,6 +73,14 @@ denies contains {"rule_id": "COL-GATE-SCOPE", "reason": {"field": "max_scopes", 
 	not s in decl.max_scopes
 }
 
+denies contains {"rule_id": "COL-GATE-SCOPE", "reason": {"field": "max_scopes", "value": "scope entry is not a string"}} if {
+	tool_known
+	startswith(call.name, "auth.")
+	scopes_stated
+	some s in args.scopes
+	not is_string(s)
+}
+
 denies contains {"rule_id": "COL-GATE-SCOPE", "reason": {"field": "max_scopes", "value": "scopes not stated"}} if {
 	tool_known
 	startswith(call.name, "auth.")
@@ -101,9 +109,15 @@ dataclass_stated if is_string(args.data_class)
 
 path_in_sandbox(p) if {
 	some prefix in decl.sandbox.write_paths
-	startswith(p, prefix)
+	startswith(p, dir_prefix(prefix))
 	not contains(p, "..")
 }
+
+# A write path is a directory, never a bare string prefix: "out/notifier"
+# must not admit "out/notifier-evil/x".
+dir_prefix(prefix) := prefix if endswith(prefix, "/")
+
+dir_prefix(prefix) := concat("", [prefix, "/"]) if not endswith(prefix, "/")
 
 # Data class: any tool that reads or writes must label the call, and the label
 # must be one the tool is allowed to touch.
@@ -121,10 +135,13 @@ denies contains {"rule_id": "COL-GATE-DATACLASS", "reason": {"field": "tools[].d
 }
 
 # Destination: a tool that declares destinations may only send or fetch to one
-# that matches; a call with no destination is refused.
+# that matches. Exactly one destination-bearing key (to, url) must be present;
+# none or more than one is refused, so a call cannot pass the check on one key
+# while the upstream acts on another.
 denies contains {"rule_id": "COL-GATE-DESTINATION", "reason": {"field": "tools[].destinations", "value": dest}} if {
 	tool_known
 	count(object.get(tool, "destinations", [])) > 0
+	count(destination_keys) == 1
 	dest := destination_of(args)
 	not destination_allowed(dest)
 }
@@ -132,7 +149,18 @@ denies contains {"rule_id": "COL-GATE-DESTINATION", "reason": {"field": "tools[]
 denies contains {"rule_id": "COL-GATE-DESTINATION", "reason": {"field": "tools[].destinations", "value": "destination not stated"}} if {
 	tool_known
 	count(object.get(tool, "destinations", [])) > 0
-	not destination_of(args)
+	count(destination_keys) == 0
+}
+
+denies contains {"rule_id": "COL-GATE-DESTINATION", "reason": {"field": "tools[].destinations", "value": sprintf("ambiguous destination: %v", [sort([k | some k in destination_keys])])}} if {
+	tool_known
+	count(object.get(tool, "destinations", [])) > 0
+	count(destination_keys) > 1
+}
+
+destination_keys contains k if {
+	some k in ["to", "url"]
+	is_string(args[k])
 }
 
 has_to(a) if is_string(a.to)

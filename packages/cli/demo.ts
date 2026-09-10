@@ -90,6 +90,7 @@ export async function runDemo(o: DemoOptions): Promise<PacketOutput[]> {
     rmSync(tracePath, { force: true });
     const w = new TraceWriter(tracePath);
     for (const d of n.drafts) w.append(d);
+    w.seal();
     packets.push(buildPacket({ name: "claude-hook", source: "claude-hook", sessionId: n.sessionId, task: n.task, outRoot, tracePath, signer }));
     log(`packet  claude-hook: ${n.drafts.length} hook events normalized → ${packets.at(-1)!.bundleDir.replace(outRoot + "/", "")}`);
   }
@@ -101,6 +102,7 @@ export async function runDemo(o: DemoOptions): Promise<PacketOutput[]> {
     rmSync(tracePath, { force: true });
     const w = new TraceWriter(tracePath);
     for (const d of n.drafts) w.append(d);
+    w.seal();
     packets.push(buildPacket({ name: "aws-config", source: "aws-config", sessionId: n.sessionId, task: n.task, outRoot, tracePath, extraEvidence: n.evidence, signer }));
     log(`packet  aws-config: ${n.drafts.length} CloudTrail events normalized (fixture only) → ${packets.at(-1)!.bundleDir.replace(outRoot + "/", "")}`);
   }

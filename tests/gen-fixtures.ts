@@ -42,6 +42,7 @@ calls.forEach((c, i) => {
 });
 mkdirSync(join(FIX, "traces"), { recursive: true });
 writeFileSync(join(FIX, "traces", "breach.jsonl"), lines.join("\n") + "\n");
+writeFileSync(join(FIX, "traces", "breach.jsonl.head.json"), JSON.stringify({ trace_head_version: "0.1.0", lines: lines.length, last_sha256: prev!.this_sha256, sealed_at: NOW.toISOString() }, null, 2) + "\n");
 
 // --- gate inputs for `opa eval` ---
 const ctx = { session_id: "fixture", call_index: 0 };

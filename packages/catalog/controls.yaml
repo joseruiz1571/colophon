@@ -40,7 +40,7 @@ controls:
     intent: Decisions cannot be inserted, removed, or altered after the fact without detection.
     phase: assess
     check: trace-chain-intact
-    falsifier: Any line whose this_sha256 does not recompute or whose prev_sha256 does not link to the previous line.
+    falsifier: Any line whose this_sha256 does not recompute or whose prev_sha256 does not link to the previous line; a missing head commitment; a head whose line count or last hash does not match the file.
     framework_refs:
       - { framework: NIST-800-53, ref: "AU-9" }
       - { framework: NIST-800-53, ref: "AU-10" }
