@@ -47,8 +47,8 @@ Rationale: the local demo needs a key; generating one per run under the gitignor
 ### D15 · Probe runner clones committed HEAD
 Rationale: the brief says a claim is done only when its probe ran from a fresh clone. `tests/probes.ts` clones the repository's committed HEAD into a temp directory, installs with `--frozen-lockfile`, runs the demo, then runs every SPEC probe there and writes `out/probes.json`. Uncommitted work is invisible to it by design. STATUS rows are written from that output and cite the HEAD they ran at.
 
-### D16 · Repository not pushed by the builder
-Rationale: creating a public remote is outward-facing and was not part of the brief. The CI workflow is written and pinned but has not run; STATUS marks the green-CI half of S37 partial for that reason and says what is needed (push to a GitHub repository with `id-token: write`).
+### D16 · Repository pushed only on the operator's word
+Rationale: creating a public remote is outward-facing, so the builder stopped before it and asked. The operator said "push it" on 2026-09-10; the repository is `github.com/joseruiz1571/colophon` and the first CI run (34505148818) was green, including keyless Sigstore signing and pinned-identity verification. Until that run, STATUS marked S37 partial.
 
 ### D17 · Installed nothing
 Bun 1.4.0, OPA 1.19.1, Cosign 3.1.3, jq 1.8.2, and gitleaks 8.30.1 were already present on the build machine; CI pins the same Bun, OPA, and Cosign versions and installs gitleaks at the same version.

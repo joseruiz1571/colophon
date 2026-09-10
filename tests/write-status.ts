@@ -15,10 +15,9 @@ for (const line of spec.split("\n")) {
   const m = /^\| (S\d+|A\d+) \| (.+?) \| `/.exec(line);
   if (m) claims.set(m[1]!, m[2]!);
 }
-const PARTIAL: Record<string, string> = {
-  S37: "The workflow is written and pinned and the static probe passes, but it has never executed: the repository has not been pushed to GitHub, so the keyless Sigstore signing path and the green-run half of the claim are unexercised. Needs: push to a GitHub repo with `id-token: write` and read the run.",
-};
+const PARTIAL: Record<string, string> = {};
 const NOTES: Record<string, string> = {
+  S37: "CI ran green on the first push: https://github.com/joseruiz1571/colophon/actions/runs/34505148818 (2026-09-10). The keyless demo signed four bundles against the public Sigstore instance and `bundle verify` passed with the pinned certificate identity and issuer; the fresh-clone probe suite reported 40/40 inside CI.",
   S32: "Fixture-only by design: interface + fixture reader, no SDK, no live client. A live provider is out of scope and is not claimed.",
   S31: "Foreign PEP: three of eight assess-phase controls are not-satisfied because no Record is bound; this is the honest shape of \"their gate, your packet\".",
 };
@@ -38,7 +37,7 @@ A row is \`done\` only if its probe passed in that run. \`partial\` means the pr
 
 **${done} done · ${partial} partial · ${rows.length - done - partial} not-started** of ${rows.length} claims (S1–S37, A1–A3).
 
-Not claimed anywhere in this repository: a live AWS collector, an OWASP contribution, in-toto co-authorship, any certification, a green CI run (see S37).
+Not claimed anywhere in this repository: a live AWS collector, an OWASP contribution, in-toto co-authorship, any certification.
 
 | # | claim | status | probe run | note |
 |---|---|---|---|---|
