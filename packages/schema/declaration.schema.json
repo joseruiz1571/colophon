@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://colophon.dev/schema/declaration.schema.json",
+  "title": "Colophon Declaration",
+  "description": "Operator-authored statement of what one agent may do. Unsigned intent. Becomes a Record via `colophon record build`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "name", "owner", "risk_tier", "autonomy_level", "tools", "data_classes", "sandbox", "max_scopes", "kill_switch", "review_due", "control_mappings"],
+  "properties": {
+    "id": { "type": "string", "format": "uuid", "pattern": "^(?!00000000-0000-0000-0000-000000000000$)[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", "description": "UUID v4. The all-zero UUID is rejected." },
+    "name": { "type": "string", "minLength": 1, "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "owner": { "type": "string", "minLength": 3, "description": "Accountable human or team, e.g. an email at the operator's domain." },
+    "risk_tier": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+    "autonomy_level": {
+      "type": "string",
+      "enum": ["L0", "L1", "L2", "L3", "L4", "L5"],
+      "description": "CSA-style autonomy level. L0: no autonomy, human performs every action. L1: assistive, proposes and a human acts. L2: supervised, acts only on per-action human approval. L3: delegated, acts within declared bounds with a human on the loop. L4: bounded autonomous, acts inside hard constraints, humans engage on exception only. L5: fully autonomous, broad discretion."
+    },
+    "tools": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "data_access", "data_classes"],
+        "properties": {
+          "name": { "type": "string", "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$" },
+          "data_access": { "type": "string", "enum": ["none", "read", "write"] },
+          "data_classes": { "type": "array", "items": { "type": "string" }, "description": "Data classes this tool may touch. Must be a subset of the top-level data_classes." },
+          "destinations": { "type": "array", "items": { "type": "string" }, "description": "For tools that send or fetch: allowed destination patterns (glob on address, host, or URL prefix)." },
+          "requires_approval": { "type": "boolean", "default": false }
+        }
+      }
+    },
+    "data_classes": { "type": "array", "items": { "type": "string" }, "description": "Every data class the agent may touch across all tools, e.g. public, internal, confidential, pii, secret." },
+    "sandbox": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["write_paths"],
+      "properties": {
+        "write_paths": { "type": "array", "items": { "type": "string", "minLength": 1 }, "description": "Path prefixes the agent may write under. Any write outside is refused." }
+      }
+    },
+    "max_scopes": { "type": "array", "items": { "type": "string" }, "description": "Upper bound on credential scopes any auth.* tool may request." },
+    "kill_switch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["available", "mechanism"],
+      "properties": {
+        "available": { "type": "boolean" },
+        "mechanism": { "type": "string", "minLength": 1 }
+      }
+    },
+    "review_due": { "type": "string", "format": "date", "description": "YYYY-MM-DD. A Record past this date is stale and fails lint." },
+    "control_mappings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["control_id", "framework"],
+        "properties": {
+          "control_id": { "type": "string", "minLength": 1 },
+          "framework": { "type": "string", "enum": ["NIST-AI-RMF", "ISO-42001", "OWASP-LLM-TOP10", "MITRE-ATLAS", "NIST-800-53", "CSA-AICM"] }
+        }
+      }
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "a2a_card_uri": { "type": "string", "format": "uri", "description": "Optional citation of an A2A Agent Card. Identity only; never a permission source." }
+      }
+    }
+  }
+}

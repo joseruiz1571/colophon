@@ -1,0 +1,108 @@
+# Colophon CI. Every push and pull request:
+#   typecheck → unit tests → OPA tests + fmt → demo (offline, local keys)
+#   → probe suite from a fresh clone → keyless demo (Sigstore, ambient OIDC)
+#   → assert a Cosign 3 bundle file exists → bundle verify with a pinned
+#   certificate identity and issuer → secret scan.
+# Tools are pinned. The only network use is dependency install and, in the
+# keyless job, the public Sigstore instance.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  BUN_VERSION: "1.4.0"
+  OPA_VERSION: "1.19.1"
+  COSIGN_VERSION: "v3.1.3"
+  GITLEAKS_VERSION: "8.30.1"
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - uses: open-policy-agent/setup-opa@v2.4.0
+        with:
+          version: ${{ env.OPA_VERSION }}
+
+      - uses: sigstore/cosign-installer@v4.1.2
+        with:
+          cosign-release: ${{ env.COSIGN_VERSION }}
+
+      - name: Install gitleaks (pinned)
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar xz gitleaks
+          sudo mv gitleaks /usr/local/bin/gitleaks
+          gitleaks version
+
+      - name: Tool versions
+        run: |
+          bun --version
+          opa version
+          cosign version
+
+      - name: Install (frozen lockfile)
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Unit tests
+        run: bun test tests
+
+      - name: OPA policy tests and formatting
+        run: |
+          opa test packages/policy -v
+          test -z "$(opa fmt --list packages/policy)"
+
+      - name: Demo (offline, local key pair)
+        run: bun run demo
+
+      - name: Probe suite from a fresh clone (STATUS evidence)
+        run: bun tests/probes.ts
+
+      - name: Demo (keyless, ambient OIDC)
+        env:
+          COLOPHON_CERT_IDENTITY_REGEXP: "^https://github.com/${{ github.repository }}/\\.github/workflows/ci\\.yml@.*$"
+          COLOPHON_OIDC_ISSUER: "https://token.actions.githubusercontent.com"
+        run: bun run demo --keyless --out out/keyless
+
+      - name: Assert signature artifacts exist (Cosign 3 bundle format)
+        run: |
+          set -e
+          for d in out/demo out/keyless; do
+            n=$(ls "$d"/*/bundle/manifest.sigstore.json | wc -l)
+            echo "$d: $n signature bundles"
+            test "$n" -ge 4
+          done
+          jq -e '.mediaType | startswith("application/vnd.dev.sigstore.bundle")' out/keyless/evidence-reader/bundle/manifest.sigstore.json
+
+      - name: Bundle verify (keyless, pinned identity + issuer)
+        run: |
+          set -e
+          for b in out/keyless/*/bundle; do
+            bun packages/cli/main.ts bundle verify "$b" \
+              --certificate-identity-regexp "^https://github.com/${{ github.repository }}/\\.github/workflows/ci\\.yml@.*\$" \
+              --oidc-issuer https://token.actions.githubusercontent.com
+          done
+
+      - name: Bundle verify (local key)
+        run: |
+          set -e
+          for b in out/demo/*/bundle; do
+            bun packages/cli/main.ts bundle verify "$b" --pubkey out/demo/keys/cosign.pub
+          done
+
+      - name: Secret scan
+        run: gitleaks detect --no-git --config .gitleaks.toml --exit-code 1 -v

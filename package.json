@@ -1,0 +1,27 @@
+{
+  "name": "colophon",
+  "version": "0.1.0",
+  "description": "Assessment and attestation layer for AI agent tool use: a signed session packet a stranger can verify.",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "colophon": "bun packages/cli/main.ts",
+    "demo": "bun packages/cli/main.ts demo",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test tests",
+    "test:opa": "opa test packages/policy -v",
+    "probes": "bun tests/probes.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0",
+    "ajv": "8.17.1",
+    "ajv-formats": "3.0.1",
+    "yaml": "2.8.1",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.0",
+    "typescript": "5.9.2"
+  }
+}

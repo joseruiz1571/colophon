@@ -1,0 +1,15 @@
+id: 1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d
+name: no-owner
+risk_tier: low
+autonomy_level: L1
+tools:
+  - name: repo.list
+    data_access: read
+    data_classes: [public]
+data_classes: [public]
+sandbox: { write_paths: [] }
+max_scopes: []
+kill_switch: { available: false, mechanism: none }
+review_due: "2027-01-01"
+control_mappings:
+  - { control_id: "GOVERN-1.1", framework: NIST-AI-RMF }

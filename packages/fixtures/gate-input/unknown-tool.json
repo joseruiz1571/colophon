@@ -1,0 +1,97 @@
+{
+  "record": {
+    "record_type": "colophon-record",
+    "record_version": "0.1.0",
+    "declaration": {
+      "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+      "name": "evidence-reader",
+      "owner": "grc-engineering@acme.example",
+      "risk_tier": "high",
+      "autonomy_level": "L3",
+      "tools": [
+        {
+          "name": "repo.list",
+          "data_access": "read",
+          "data_classes": [
+            "public",
+            "internal"
+          ]
+        },
+        {
+          "name": "repo.read_settings",
+          "data_access": "read",
+          "data_classes": [
+            "internal"
+          ]
+        },
+        {
+          "name": "fs.read",
+          "data_access": "read",
+          "data_classes": [
+            "public",
+            "internal"
+          ]
+        },
+        {
+          "name": "fs.write",
+          "data_access": "write",
+          "data_classes": [
+            "internal"
+          ]
+        },
+        {
+          "name": "auth.request_scopes",
+          "data_access": "none",
+          "data_classes": []
+        }
+      ],
+      "data_classes": [
+        "public",
+        "internal"
+      ],
+      "sandbox": {
+        "write_paths": [
+          "out/evidence-reader/"
+        ]
+      },
+      "max_scopes": [
+        "repo:read"
+      ],
+      "kill_switch": {
+        "available": true,
+        "mechanism": "revoke the GitHub App installation token; the gate refuses every call once the Record is withdrawn"
+      },
+      "review_due": "2027-03-31",
+      "control_mappings": [
+        {
+          "control_id": "GOVERN-1.1",
+          "framework": "NIST-AI-RMF"
+        },
+        {
+          "control_id": "LLM06",
+          "framework": "OWASP-LLM-TOP10"
+        },
+        {
+          "control_id": "A.6.2.6",
+          "framework": "ISO-42001"
+        }
+      ],
+      "identity": {
+        "a2a_card_uri": "https://agents.acme.example/.well-known/agent.json"
+      }
+    },
+    "declaration_sha256": "2d94e655b65ca0f7e0541fca08e80d36f2d08712936e5f328fb64275474566d7",
+    "created_at": "2026-09-10T12:00:00.000Z",
+    "canonical_sha256": "01e9ceae6f94e6987d74bd4bde283ec0e04ff253b8a7b0f120644b6212f4780d"
+  },
+  "call": {
+    "name": "mail.send",
+    "arguments": {
+      "to": "auditor@acme.example"
+    }
+  },
+  "context": {
+    "session_id": "fixture",
+    "call_index": 0
+  }
+}

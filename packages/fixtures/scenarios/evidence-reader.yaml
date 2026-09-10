@@ -1,0 +1,26 @@
+# Scripted session for evidence-reader. Every call is replayed through the
+# gate in order. The synthetic token below is FAKE and is used only to prove
+# it never appears in the packet. Marker: FAKE-DEMO-CREDENTIAL.
+name: evidence-reader-session
+agent: evidence-reader
+task: "Produce branch-protection evidence for acme/ledger-api and acme/web"
+calls:
+  - tool: repo.list
+    arguments: { org: acme, data_class: internal }
+  - tool: repo.read_settings
+    arguments: { repo: acme/ledger-api, data_class: internal }
+  - tool: repo.read_settings
+    arguments: { repo: acme/web, data_class: internal }
+  - tool: auth.request_scopes
+    arguments: { scopes: ["repo:read"] }
+  - tool: fs.write
+    arguments: { path: out/evidence-reader/branch-protection.md, data_class: internal, content: "acme/ledger-api: protected; acme/web: protected" }
+  # --- out-of-scope attempts, one per rule id ---
+  - tool: mail.send
+    arguments: { to: auditor@acme.example, subject: "evidence ready" }
+  - tool: auth.request_scopes
+    arguments: { scopes: ["repo:read", "admin:org"] }
+  - tool: fs.write
+    arguments: { path: /tmp/gh-token.json, data_class: internal, token: "FAKE-DEMO-CREDENTIAL-do-not-use-0000" }
+  - tool: fs.read
+    arguments: { path: secrets/deploy-token.txt, data_class: secret }

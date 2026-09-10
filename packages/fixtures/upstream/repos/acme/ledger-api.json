@@ -1,0 +1,1 @@
+{ "repo": "acme/ledger-api", "default_branch": "main", "branch_protection": { "required_reviews": 2, "require_signed_commits": true, "enforce_admins": true } }

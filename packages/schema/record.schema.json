@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://colophon.dev/schema/record.schema.json",
+  "title": "Colophon Record",
+  "description": "A Declaration canonicalized (RFC 8785), hashed, and bound at runtime. Signed out of band with Cosign as <id>.record.sigstore.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["record_type", "record_version", "declaration", "declaration_sha256", "canonical_sha256", "created_at"],
+  "properties": {
+    "record_type": { "const": "colophon-record" },
+    "record_version": { "const": "0.1.0" },
+    "declaration": { "$ref": "declaration.schema.json" },
+    "declaration_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "SHA-256 of the RFC 8785 canonical form of the declaration object." },
+    "canonical_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "SHA-256 of the RFC 8785 canonical form of this record with canonical_sha256 removed." },
+    "created_at": { "type": "string", "format": "date-time" }
+  }
+}

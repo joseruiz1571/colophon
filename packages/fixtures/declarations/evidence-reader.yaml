@@ -1,0 +1,38 @@
+# evidence-reader: reads repository settings to produce branch-protection
+# evidence. High risk because it handles credentials scopes. Bounded to
+# repo:read and to writing under out/evidence-reader/.
+id: 7c9e6679-7425-40de-944b-e07fc1f90ae7
+name: evidence-reader
+owner: grc-engineering@acme.example
+risk_tier: high
+autonomy_level: L3
+tools:
+  - name: repo.list
+    data_access: read
+    data_classes: [public, internal]
+  - name: repo.read_settings
+    data_access: read
+    data_classes: [internal]
+  - name: fs.read
+    data_access: read
+    data_classes: [public, internal]
+  - name: fs.write
+    data_access: write
+    data_classes: [internal]
+  - name: auth.request_scopes
+    data_access: none
+    data_classes: []
+data_classes: [public, internal]
+sandbox:
+  write_paths: ["out/evidence-reader/"]
+max_scopes: ["repo:read"]
+kill_switch:
+  available: true
+  mechanism: "revoke the GitHub App installation token; the gate refuses every call once the Record is withdrawn"
+review_due: "2027-03-31"
+control_mappings:
+  - { control_id: "GOVERN-1.1", framework: NIST-AI-RMF }
+  - { control_id: "LLM06", framework: OWASP-LLM-TOP10 }
+  - { control_id: "A.6.2.6", framework: ISO-42001 }
+identity:
+  a2a_card_uri: "https://agents.acme.example/.well-known/agent.json"

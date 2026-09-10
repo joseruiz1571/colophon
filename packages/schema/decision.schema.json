@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://colophon.dev/schema/decision.schema.json",
+  "title": "Colophon Decision",
+  "description": "PEP-agnostic verdict for one attempted tool call. Every adapter emits exactly this shape. this_sha256 is SHA-256 over the RFC 8785 form of the object with this_sha256 removed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source", "effect", "rule_ids", "reasons", "tool", "args_sha256", "ts", "prev_sha256", "this_sha256"],
+  "properties": {
+    "source": { "type": "string", "minLength": 1, "description": "colophon-gate | claude-hook | aws-config | any other PEP name" },
+    "effect": { "type": "string", "enum": ["allow", "deny", "escalate"] },
+    "rule_ids": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["field", "value"],
+        "properties": {
+          "field": { "type": "string", "minLength": 1, "description": "The Record (or foreign policy) field that bound the decision." },
+          "value": { "description": "The value that satisfied or violated it. Never a raw secret." }
+        }
+      }
+    },
+    "tool": { "type": "string", "minLength": 1 },
+    "args_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "args_redacted": { "type": "object", "description": "Optional. Argument view with secret-looking values replaced by [REDACTED]." },
+    "session_id": { "type": "string" },
+    "call_index": { "type": "integer", "minimum": 0 },
+    "record_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "ts": { "type": "string", "format": "date-time" },
+    "prev_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
+    "this_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

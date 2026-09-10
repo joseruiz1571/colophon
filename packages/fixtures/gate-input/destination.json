@@ -1,0 +1,68 @@
+{
+  "record": {
+    "record_type": "colophon-record",
+    "record_version": "0.1.0",
+    "declaration": {
+      "id": "9b2d1c4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e",
+      "name": "notifier",
+      "owner": "platform-ops@acme.example",
+      "risk_tier": "medium",
+      "autonomy_level": "L3",
+      "tools": [
+        {
+          "name": "fs.write",
+          "data_access": "write",
+          "data_classes": [
+            "internal"
+          ]
+        },
+        {
+          "name": "mail.send",
+          "data_access": "none",
+          "data_classes": [],
+          "destinations": [
+            "*@acme.example"
+          ]
+        }
+      ],
+      "data_classes": [
+        "internal"
+      ],
+      "sandbox": {
+        "write_paths": [
+          "out/notifier/"
+        ]
+      },
+      "max_scopes": [],
+      "kill_switch": {
+        "available": true,
+        "mechanism": "disable the notifier service account"
+      },
+      "review_due": "2027-03-31",
+      "control_mappings": [
+        {
+          "control_id": "LLM06",
+          "framework": "OWASP-LLM-TOP10"
+        },
+        {
+          "control_id": "MANAGE-2.2",
+          "framework": "NIST-AI-RMF"
+        }
+      ]
+    },
+    "declaration_sha256": "0601467b02a7b184f9b61027293250a7929f2c8a9988f111b0318e854b70dddc",
+    "created_at": "2026-09-10T12:00:00.000Z",
+    "canonical_sha256": "7c7f94dd838684bbd977f7e00dd941ebb212687af83022337a4423fbbf31e263"
+  },
+  "call": {
+    "name": "mail.send",
+    "arguments": {
+      "to": "ops@evil.example",
+      "subject": "x"
+    }
+  },
+  "context": {
+    "session_id": "fixture",
+    "call_index": 0
+  }
+}

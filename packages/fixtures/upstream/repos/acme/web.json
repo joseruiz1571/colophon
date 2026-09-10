@@ -1,0 +1,1 @@
+{ "repo": "acme/web", "default_branch": "main", "branch_protection": { "required_reviews": 1, "require_signed_commits": false, "enforce_admins": true } }
