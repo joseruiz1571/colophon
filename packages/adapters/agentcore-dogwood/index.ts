@@ -149,11 +149,8 @@ export function normalizeAgentcoreEvent(e: AgentcoreEvent, index: number): Decis
     str(attr(e, "aws.agentcore.policy.authorization_reason")) ??
     (raw && EFFECTS[raw] ? `Dogwood ${effect}` : `AgentCore/Dogwood returned ${raw ?? "no decision"}; denied`);
   const mode = str(e.enforcement_mode) ?? str(attr(e, "aws.agentcore.gateway.policy.mode"));
-  const gateway = str(e.gateway_id) ?? str(attr(e, "aws.agentcore.policy.target_resource.id"));
   const reasons: { field: string; value: unknown }[] = [{ field: "aws.agentcore.policy.authorization_reason", value: reasonText }, primaryField(input)];
-  if (mode) reasons.push({ field: "aws.agentcore.gateway.policy.mode", value: mode });
-  if (gateway) reasons.push({ field: "aws.agentcore.policy.target_resource.id", value: gateway });
-  if (str(e.action)) reasons.push({ field: "action", value: e.action });
+  if (mode === "LOG_ONLY") reasons.push({ field: "aws.agentcore.gateway.policy.mode", value: mode });
   return {
     source: SOURCE,
     effect,
