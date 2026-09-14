@@ -4,6 +4,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
+import { normalizeAgentcoreDogwood } from "../adapters/agentcore-dogwood/index.ts";
 import { FixtureAwsConfigProvider, normalizeAwsConfig } from "../adapters/aws-config/index.ts";
 import { normalizeClaudeHook } from "../adapters/claude-hook/index.ts";
 import { createBundle } from "../bundle/manifest.ts";
@@ -71,7 +72,7 @@ const USAGE = `colophon — signed session packets for AI agent tool use
   upstream demo
   agent run --scenario <yaml> --record <r> --pubkey <pub> --out <dir> [--list-tools]
   trace verify <file>
-  normalize <claude-hook|aws-config> <path> --out <dir>
+  normalize <claude-hook|aws-config|agentcore-dogwood> <path> --out <dir>
   report --trace <file> --record <r> --out <dir>
   report validate <assessment-results.json>
   bundle create --from <stage> --out <dir>
@@ -227,6 +228,18 @@ async function main(argv: string[]): Promise<number> {
       mkdirSync(join(dir, "evidence-raw"), { recursive: true });
       for (const [i, e] of n.evidence.entries()) await Bun.write(join(dir, "evidence-raw", `${i}-${e.kind}.json`), JSON.stringify(e.payload, null, 2) + "\n");
       out(`${tracePath}: ${n.drafts.length} decisions, ${n.evidence.length} evidence items from ${src} (source aws-config, fixture only)`);
+      return 0;
+    }
+    if (adapter === "agentcore-dogwood") {
+      const n = normalizeAgentcoreDogwood(src);
+      const tracePath = join(dir, "trace", `${n.sessionId}.jsonl`);
+      rmSync(tracePath, { force: true });
+      const w = new TraceWriter(tracePath);
+      for (const d of n.drafts) w.append(d);
+      w.seal();
+      mkdirSync(join(dir, "evidence-raw"), { recursive: true });
+      for (const [i, e] of n.evidence.entries()) await Bun.write(join(dir, "evidence-raw", `${i}-${e.kind}.json`), JSON.stringify(e.payload, null, 2) + "\n");
+      out(`${tracePath}: ${n.drafts.length} decisions, ${n.evidence.length} evidence items from ${src} (source agentcore-dogwood, fixture only)`);
       return 0;
     }
     fail(`unknown adapter ${adapter}`);

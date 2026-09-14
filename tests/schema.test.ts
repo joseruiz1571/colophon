@@ -7,10 +7,20 @@ const FIX = resolve(import.meta.dir, "../packages/fixtures");
 
 describe("declaration schema", () => {
   test("shipped declarations validate", () => {
-    for (const f of ["evidence-reader.yaml", "notifier.yaml"]) expect(() => loadDeclaration(join(FIX, "declarations", f))).not.toThrow();
+    for (const f of ["evidence-reader.yaml", "notifier.yaml", "red-team-coder.yaml"]) expect(() => loadDeclaration(join(FIX, "declarations", f))).not.toThrow();
   });
   test("missing owner is named", () => {
     expect(() => loadDeclaration(join(FIX, "declarations", "bad", "missing-owner.yaml"))).toThrow(/owner/);
+  });
+  test("pep binding is optional and extra pep fields are rejected", () => {
+    const d = loadDeclaration(join(FIX, "declarations", "red-team-coder.yaml"));
+    expect(d.pep?.kind).toBe("agentcore-dogwood");
+    expect(d.pep?.enforcement_mode).toBe("ENFORCE");
+    expect(validateDeclaration({ ...d, pep: { ...d.pep, extra: true } }).ok).toBe(false);
+    expect(validateDeclaration({ ...d, pep: { kind: "agentcore-dogwood" } }).ok).toBe(false);
+    const n = loadDeclaration(join(FIX, "declarations", "notifier.yaml"));
+    expect(n.pep).toBeUndefined();
+    expect(validateDeclaration(n).ok).toBe(true);
   });
   test("all-zero uuid and unknown autonomy level are rejected", () => {
     const d = loadDeclaration(join(FIX, "declarations", "notifier.yaml"));

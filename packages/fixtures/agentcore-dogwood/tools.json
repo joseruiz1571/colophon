@@ -1,0 +1,55 @@
+{
+  "name": "red-team-coder",
+  "description": "MCP tool schema cited by the red-team-coder Record. Synthetic. Not a live Gateway export.",
+  "tools": [
+    {
+      "name": "repo.read_file",
+      "description": "Read a file in the engagement repository.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string" },
+          "data_class": { "type": "string" }
+        },
+        "required": ["path", "data_class"]
+      }
+    },
+    {
+      "name": "repo.git_push",
+      "description": "Push a patch produced under the sandbox. Temporal: requires a prior approvals.approve in the policy session.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string" },
+          "data_class": { "type": "string" },
+          "remote": { "type": "string" },
+          "branch": { "type": "string" }
+        },
+        "required": ["path", "data_class"]
+      }
+    },
+    {
+      "name": "approvals.approve",
+      "description": "Record a human approval consumed by ApproveBeforeAct temporal policy.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": { "type": "string" },
+          "scope": { "type": "string" }
+        },
+        "required": ["action"]
+      }
+    },
+    {
+      "name": "shell.run",
+      "description": "Run a command. In-scope tests only; egress and rate-limit are Dogwood forbids.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "command": { "type": "string" }
+        },
+        "required": ["command"]
+      }
+    }
+  ]
+}

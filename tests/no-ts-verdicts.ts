@@ -18,6 +18,7 @@ const ALLOWED: Record<string, RegExp[]> = {
   "gate/eval.ts": [/effect: "deny", rule_ids: \["COL-GATE-OPA-ERROR"\]/],
   "adapters/claude-hook/index.ts": [/const EFFECTS: Record<string, Effect> = \{ allow: "allow", deny: "deny", ask: "escalate" \}/, /: "deny";$/],
   "adapters/aws-config/index.ts": [/effect: denied \? "deny" : "allow"/],
+  "adapters/agentcore-dogwood/index.ts": [/const EFFECTS: Record<string, Effect> = \{ allow: "allow", deny: "deny", ALLOW: "allow", DENY: "deny" \}/, /: "deny";$/],
   // Assessment reads a recorded effect; it never produces one.
   "catalog/checks.ts": [/\.effect === "deny"/, /\.effect !== "allow"/],
 };

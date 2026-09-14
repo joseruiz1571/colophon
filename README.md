@@ -5,6 +5,19 @@
 The gate is the reference microphone. The packet is the product.
 
 > **Custody is provable. Judgment is not.**
+>
+> **AgentCore/Dogwood enforce; Colophon makes the decisions portable evidence.**
+
+## Who this is for
+
+Two headlines the sealed packet is meant to make unmistakable:
+
+1. **Signed artifact for agent rules of engagement** — especially AI red-team scope assurance. The declared allow/deny boundary (which tools, which Dogwood policy set, ENFORCE vs LOG_ONLY) as a reconstructible, Cosign-signed packet.
+2. **Coding-agent evidence of controls** — what tools were declared, what the PEP allowed or denied, portable for audit sampling and second-party assurance.
+
+Also relevant, named without expanding scope: vendor attestations; audit sampling of agentic tool use. Colophon is a small GRC evidence pipeline, not a rival monitoring dashboard.
+
+On AWS, Bedrock AgentCore Gateway + Dogwood is the Policy Enforcement Point. Colophon does not reimplement Dogwood in Rego. It normalizes foreign PEP allow/deny decisions into DecisionDrafts and seals them. CloudTrail/IAM evidence stays in `packages/adapters/aws-config` — a different PEP. This repository does **not** wire live CloudWatch or EventBridge ingest (Phase 4 is deferred; AWS live wiring is the gate for a wider share, not claimed here).
 
 ## Two commands
 
@@ -13,7 +26,22 @@ bun install && bun run demo
 bun run colophon bundle verify out/demo/evidence-reader/bundle --pubkey out/demo/keys/cosign.pub
 ```
 
-The demo needs `bun`, `opa`, `cosign` (3.x), and `jq` on the path. It runs offline after install: two declared agents are gated through the MCP gate, two foreign PEP fixtures (a Claude Code hook log, a CloudTrail export) are normalized, and four packets are signed with a throwaway local key pair and verified. It exits 1 if signing fails. It prints `SIGNATURE: <path>` only after `bundle verify` passed.
+The demo needs `bun`, `opa`, `cosign` (3.x), and `jq` on the path. It runs offline after install: two declared agents are gated through the MCP gate, three foreign PEP fixtures (a Claude Code hook log, a CloudTrail export, an AgentCore/Dogwood RoE replay) are normalized, and five packets are signed with a throwaway local key pair and verified. It exits 1 if signing fails. It prints `SIGNATURE: <path>` only after `bundle verify` passed.
+
+AJ / community AgentCore demo (fixture → sealed packet → verify):
+
+```
+bun run demo
+bun packages/cli/main.ts bundle verify out/demo/agentcore-dogwood/bundle --pubkey out/demo/keys/cosign.pub
+```
+
+Trace-only ingest (same `normalize` pattern as `claude-hook`):
+
+```
+bun packages/cli/main.ts normalize agentcore-dogwood \
+  packages/fixtures/agentcore-dogwood/session.jsonl --out out/probe/ac
+bun packages/cli/main.ts trace verify out/probe/ac/trace/*.jsonl
+```
 
 A stranger with `cosign` alone:
 
@@ -57,17 +85,30 @@ bundle/
 
 **Declaration**: operator-authored YAML, unsigned intent. **Record**: the Declaration canonicalized (RFC 8785), hashed, Cosign-signed, and bound by the gate at startup. **Decision**: one PEP-agnostic verdict (`allow` / `deny` / `escalate`, rule ids, reasons naming the binding field). **Trace**: chained Decisions. **Evidence**: content-addressed payloads. **Bundle**: the directory. **Packet**: bundle plus signature. There is no "Agent Card"; an A2A card may be cited as `identity.a2a_card_uri` and nothing more.
 
+Optional Declaration `pep` (foreign PEP binding): when the PEP is AgentCore + Dogwood, the signed Record should name the agent/MCP tool schema ref, Dogwood policy set id + version/hash, Gateway id if known, and `ENFORCE` vs `LOG_ONLY`. See [`packages/adapters/agentcore-dogwood/README.md`](packages/adapters/agentcore-dogwood/README.md).
+
+## Three layers (detection vs PEP vs custody)
+
+| layer | who | Colophon |
+|---|---|---|
+| Detection | CloudWatch spans, metrics, Guardrails | no |
+| PEP | AgentCore Gateway + Dogwood (or the reference MCP gate, or another adapter) | no — we do not enforce |
+| Custody | DecisionDraft → Trace → Evidence → OSCAL AR → Cosign | yes |
+
+`ENFORCE` means the Gateway applied the decision. `LOG_ONLY` means Dogwood evaluated and Colophon still records the would-be allow/deny; it is not proof the call was blocked.
+
 ## Adapters
 
 | adapter | status |
 |---|---|
 | `colophon-gate` | live in the demo: MCP stdio PEP, verdicts only from `packages/policy/gate.rego` via OPA |
 | `claude-hook` | fixture: PreToolUse hook events → Decisions → same catalog, signed packet |
-| `aws-config` | interface + fixture reader only (CloudTrail LookupEvents, GetRolePolicy, GetBucketEncryption). No SDK, no live client. |
+| `aws-config` | interface + fixture reader only (CloudTrail LookupEvents, GetRolePolicy, GetBucketEncryption). Infrastructure PEP. No SDK, no live client. |
+| `agentcore-dogwood` | fixture: AgentCore/Dogwood AuthorizeAction events → Decisions → same catalog, signed RoE packet. No SDK, no live CloudWatch/EventBridge. |
 
 ## Status
 
-Every claim, its probe, and whether the probe ran from a fresh clone: [`SPEC.md`](SPEC.md) defines them, [`STATUS.md`](STATUS.md) reports them, [`DECISIONS.md`](DECISIONS.md) records the choices made here. Nothing in this repository claims a live AWS collector, an OWASP contribution, in-toto co-authorship, or any certification.
+Every claim, its probe, and whether the probe ran from a fresh clone: [`SPEC.md`](SPEC.md) defines them, [`STATUS.md`](STATUS.md) reports them, [`DECISIONS.md`](DECISIONS.md) records the choices made here. Nothing in this repository claims a live AWS collector, live AgentCore ingest, an OWASP contribution, in-toto co-authorship, or any certification.
 
 ## License
 

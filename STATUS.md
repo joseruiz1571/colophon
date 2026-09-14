@@ -4,7 +4,7 @@ Probe run: `bun tests/probes.ts` at HEAD `e4fea17`, 2026-09-10T16:38:17.692Z, fr
 
 A row is `done` only if its probe passed in that run. `partial` means the probe passed but the claim's full meaning was not exercised, with the reason stated. `not-started` means the probe failed or did not run.
 
-**40 done · 0 partial · 0 not-started** of 40 claims (S1–S37, A1–A3).
+**40 done · 0 partial · 1 not-started** of 41 claims (S1–S38, A1–A3).
 
 Not claimed anywhere in this repository: a live AWS collector, an OWASP contribution, in-toto co-authorship, any certification.
 
@@ -47,6 +47,7 @@ Not claimed anywhere in this repository: a live AWS collector, an OWASP contribu
 | S35 | DECISIONS.md records only decisions made in this repo, each with a rationale; it contains no operator brief. | done | `bun tests/probes.ts` S35 at e4fea17, 0.0s |  |
 | S36 | `bun test` passes and `bun run typecheck` exits 0. | done | `bun tests/probes.ts` S36 at e4fea17, 3.6s |  |
 | S37 | `.github/workflows/ci.yml` pins Bun and Cosign 3.x, runs `bun install --frozen-lockfile`, typecheck, `bun test`, `opa test`, `bun run demo`, `bun t… | done | `bun tests/probes.ts` S37 at e4fea17, 0.0s | CI ran green on the first push: https://github.com/joseruiz1571/colophon/actions/runs/34505148818 (2026-09-10). The keyless demo signed four bundles against the public Sigstore instance and `bundle verify` passed with the pinned certificate identity and issuer; the fresh-clone probe suite reported 40/40 inside CI. |
+| S38 | The agentcore-dogwood adapter normalizes fixture AgentCore/Dogwood AuthorizeAction events (approve-before-act, out-of-scope, rate-limit, simple al… | not-started | pending fresh-clone probe after this change | Fixture-only; live CloudWatch/EventBridge ingest deferred. |
 | A1 | No signing fallback: no code path continues after a failed sign; `signed` is never written by a code path that did not verify. | done | `bun tests/probes.ts` A1 at e4fea17, 0.0s |  |
 | A2 | No LLM provider SDK and no AWS SDK in `package.json`. | done | `bun tests/probes.ts` A2 at e4fea17, 0.0s |  |
 | A3 | `gitleaks` finds no secret in the tree (demo keys live under `out/`, which is gitignored and allowlisted). | done | `bun tests/probes.ts` A3 at e4fea17, 0.2s |  |

@@ -11,6 +11,18 @@ export type Tool = {
   requires_approval?: boolean;
 };
 
+/** Foreign PEP binding named on a Record. Optional; required fields apply only when present. */
+export type PepBinding = {
+  kind: string;
+  enforcement_mode: "ENFORCE" | "LOG_ONLY";
+  tool_schema_ref?: string;
+  policy_set_id?: string;
+  policy_set_version?: string;
+  policy_set_hash?: string;
+  policy_engine_id?: string;
+  gateway_id?: string;
+};
+
 export type Declaration = {
   id: string;
   name: string;
@@ -25,6 +37,7 @@ export type Declaration = {
   review_due: string;
   control_mappings: { control_id: string; framework: string }[];
   identity?: { a2a_card_uri?: string };
+  pep?: PepBinding;
 };
 
 export type ColophonRecord = {
