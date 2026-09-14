@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/GRCEngClub/claude-grc-engineering/schemas/finding.schema.json",
+  "title": "GRC Finding",
+  "description": "Canonical output contract for claude-grc-engineering connectors. One document per resource-evaluation batch. See docs/ARCHITECTURE.md for the pipeline model.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "source",
+    "source_version",
+    "run_id",
+    "collected_at",
+    "resource",
+    "evaluations"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Semver of this schema. Consumers pin a major version.",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "const": "1.0.0"
+    },
+    "source": {
+      "type": "string",
+      "description": "Stable identifier of the connector that produced this document.",
+      "examples": ["aws-sec-inspector", "okta-inspector-py", "github-sec-inspector", "gcp-sec-inspector"],
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "source_version": {
+      "type": "string",
+      "description": "Version of the connector tool, for reproducibility.",
+      "examples": ["1.2.3", "2026.04.13"]
+    },
+    "run_id": {
+      "type": "string",
+      "description": "Unique identifier for this collection run. ULID or UUID recommended.",
+      "minLength": 8
+    },
+    "collected_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when collection completed."
+    },
+    "resource": {
+      "type": "object",
+      "description": "The resource that was evaluated.",
+      "required": ["type", "id"],
+      "additionalProperties": true,
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "Resource type, prefixed by provider. Use snake_case.",
+          "examples": ["aws_iam_user", "aws_s3_bucket", "okta_authentication_policy", "github_repository", "gcp_iam_binding"]
+        },
+        "id": {
+          "type": "string",
+          "description": "Provider-native identifier."
+        },
+        "arn": {
+          "type": ["string", "null"],
+          "description": "AWS ARN or equivalent canonical identifier if applicable."
+        },
+        "uri": {
+          "type": ["string", "null"],
+          "description": "Non-AWS canonical URI (e.g., gcp self-link, okta URL, github html_url)."
+        },
+        "region": {
+          "type": ["string", "null"],
+          "description": "Region or location. Null for global resources."
+        },
+        "account_id": {
+          "type": ["string", "null"],
+          "description": "AWS account ID, GCP project ID, Okta org, GitHub org, etc."
+        },
+        "tags": {
+          "type": "object",
+          "description": "Resource tags/labels if available.",
+          "additionalProperties": {"type": "string"}
+        }
+      }
+    },
+    "evaluations": {
+      "type": "array",
+      "description": "One or more control evaluations performed against this resource. At least one is required.",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/evaluation"}
+    },
+    "raw_attributes": {
+      "type": "object",
+      "description": "Optional: the tool's native attributes for this resource. Preserved as-is for audit trail. Consumers SHOULD treat as opaque.",
+      "additionalProperties": true
+    },
+    "findings": {
+      "type": "array",
+      "description": "Optional: high-level narrative findings that may span multiple controls.",
+      "items": {"$ref": "#/$defs/narrative_finding"}
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Optional connector-specific context (config used, scan scope, rate limits observed, etc.).",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "evaluation": {
+      "type": "object",
+      "description": "One control evaluation. A single resource may have many evaluations (e.g., an IAM user evaluated against AC-2, AC-6, IA-2, IA-5).",
+      "required": ["control_framework", "control_id", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "control_framework": {
+          "type": "string",
+          "description": "Framework identifier. Prefer SCF for portable indexing; others are acceptable and are mapped via crosswalk.",
+          "examples": ["SCF", "NIST-800-53-r5", "NIST-800-171-r3", "SOC2-TSC-2017", "PCI-DSS-4.0", "ISO-27001-2022", "CIS-v8", "HIPAA", "FedRAMP-Moderate", "FedRAMP-High", "HITRUST-CSF-11", "CMMC-2.0"]
+        },
+        "control_id": {
+          "type": "string",
+          "description": "Framework-native control identifier (e.g., SCF 'GOV-01', NIST 'AC-2', SOC2 'CC6.1').",
+          "minLength": 1
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pass", "fail", "not_applicable", "inconclusive", "skipped"],
+          "description": "pass: requirement met. fail: requirement not met. not_applicable: scoped out. inconclusive: tool could not determine (missing permission, API error). skipped: intentionally skipped by user config."
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "low", "info"],
+          "description": "Independent of status. A failed low-severity control is not a passed one. Use 'info' for passing/NA evaluations."
+        },
+        "message": {
+          "type": "string",
+          "description": "Human-readable detail. Required for status=fail or status=inconclusive."
+        },
+        "remediation": {
+          "type": ["object", "null"],
+          "description": "Optional structured remediation guidance.",
+          "additionalProperties": false,
+          "properties": {
+            "summary": {"type": "string"},
+            "ref": {
+              "type": "string",
+              "description": "Reference to a remediation artifact: generated Terraform, scan-iac auto-fix, or external runbook URL."
+            },
+            "effort_hours": {"type": "number", "minimum": 0},
+            "automation": {
+              "type": "string",
+              "enum": ["auto_fixable", "semi_automated", "manual", "design_change"]
+            }
+          }
+        },
+        "evidence_refs": {
+          "type": "array",
+          "description": "Pointers to raw artifacts backing this evaluation. Path relative to the cache dir, or a URL.",
+          "items": {"type": "string"}
+        },
+        "assessed_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Optional per-evaluation timestamp if different from collected_at."
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "fail"}}},
+          "then": {"required": ["message", "severity"]}
+        },
+        {
+          "if": {"properties": {"status": {"const": "inconclusive"}}},
+          "then": {"required": ["message"]}
+        }
+      ]
+    },
+    "narrative_finding": {
+      "type": "object",
+      "description": "High-level finding that may span multiple controls or resources.",
+      "required": ["id", "title", "severity"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "title": {"type": "string"},
+        "severity": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "low", "info"]
+        },
+        "description": {"type": "string"},
+        "related_control_ids": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "related_resource_ids": {
+          "type": "array",
+          "items": {"type": "string"}
+        }
+      }
+    }
+  }
+}

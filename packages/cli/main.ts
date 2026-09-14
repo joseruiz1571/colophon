@@ -13,10 +13,11 @@ import { verifyBundle } from "../bundle/verify.ts";
 import { loadScenario, runScenario } from "../gate/agent.ts";
 import { bindRecord, lintRecord, recordSignaturePath, runGate } from "../gate/server.ts";
 import { serveUpstream } from "../gate/upstream.ts";
+import { findingsFromDir, validateFinding, writeFindings, buildFindings } from "../export/finding/index.ts";
 import { oscalVersionOf, validateOscal } from "../report/oscal.ts";
 import { buildRecord, loadDeclaration, loadRecord, verifyRecordHashes } from "../schema/record.ts";
 import { formatErrors, validateDeclaration } from "../schema/validate.ts";
-import { TraceWriter, verifyTrace } from "../trace/trace.ts";
+import { TraceWriter, readTrace, verifyTrace } from "../trace/trace.ts";
 import YAML from "yaml";
 import { runDemo } from "./demo.ts";
 import { assessToDir } from "./packet.ts";
@@ -75,6 +76,9 @@ const USAGE = `colophon — signed session packets for AI agent tool use
   normalize <claude-hook|aws-config|agentcore-dogwood> <path> --out <dir>
   report --trace <file> --record <r> --out <dir>
   report validate <assessment-results.json>
+  export finding --trace <file> --out <dir> [--record <r>] [--source <pep>] [--session <id>]
+  export finding --from <dir> --out <dir> [--source <pep>]
+  export finding validate <file>
   bundle create --from <stage> --out <dir>
   bundle sign <dir> --key <cosign.key> [--password <pw>] | --keyless
   bundle verify <dir> (--pubkey <pub> | --certificate-identity-regexp <re> --oidc-issuer <url>) [--out <dir>]
@@ -267,6 +271,43 @@ async function main(argv: string[]): Promise<number> {
     const r = assessToDir({ source: "colophon-gate", sessionId: basename(tracePath, ".jsonl"), task: `Assessment of trace ${tracePath} against Record ${record.declaration.name}`, tracePath, record: { path: recordPath, sigPath: sig, record }, out: dir, verifyCommand: "(assess-only output; no bundle, no signature)" });
     for (const c of r.results) out(`${c.control.id} ${c.state}: ${c.rationale}`);
     out(`report: ${join(dir, "report", "assessment-results.json")}`);
+    return 0;
+  }
+
+  if (cmd === "export" && sub === "finding") {
+    if (more[0] === "validate" || flags["validate"] === true) {
+      const path = more[0] === "validate" ? more[1] : more[0];
+      const file = path ?? fail("export finding validate <file>");
+      const doc = JSON.parse(readFileSync(file, "utf8"));
+      const v = validateFinding(doc);
+      if (!v.ok) fail(`${file}: Finding invalid: ${formatErrors(v)}`);
+      const rec = doc as { schema_version?: string; source?: string; resource?: { type?: string; id?: string } };
+      out(`${file}: valid finding.schema.json v${rec.schema_version}; source ${rec.source}; resource ${rec.resource?.type}:${rec.resource?.id}`);
+      return 0;
+    }
+    const dir = str(flags, "out");
+    mkdirSync(dir, { recursive: true });
+    const from = str(flags, "from", false);
+    if (from) {
+      const recPath = str(flags, "record", false);
+      const record = recPath ? loadRecord(recPath) : undefined;
+      const docs = findingsFromDir({ from, source: str(flags, "source", false) || undefined, record });
+      const written = writeFindings(dir, docs);
+      for (const w of written) out(`${w.path}: ${w.finding.evaluations.length} evaluations, source ${w.finding.source}, resource ${w.finding.resource.type}:${w.finding.resource.id}`);
+      return 0;
+    }
+    const tracePath = str(flags, "trace");
+    const tv = verifyTrace(tracePath);
+    if (!tv.ok) fail(`${tracePath}: refusing to export an unverified trace (${tv.reason})`);
+    if (!tv.sealed) fail(`${tracePath}: refusing to export an unsealed trace`);
+    const decisions = readTrace(tracePath);
+    const recPath = str(flags, "record", false);
+    const record = recPath ? loadRecord(recPath) : null;
+    const sessionId = str(flags, "session", false) || decisions[0]?.session_id || basename(tracePath, ".jsonl");
+    const source = str(flags, "source", false) || decisions[0]?.source || "colophon";
+    const docs = buildFindings({ decisions, sessionId, source, record });
+    const written = writeFindings(dir, docs);
+    for (const w of written) out(`${w.path}: ${w.finding.evaluations.length} evaluations, source ${w.finding.source}, resource ${w.finding.resource.type}:${w.finding.resource.id}`);
     return 0;
   }
 

@@ -82,6 +82,10 @@ AJ / community demo — fixture through the full packet (Trace → Evidence → 
 bun install && bun run demo
 bun packages/cli/main.ts bundle verify out/demo/agentcore-dogwood/bundle \
   --pubkey out/demo/keys/cosign.pub
+bun packages/cli/main.ts export finding validate \
+  out/demo/agentcore-dogwood/findings/*.finding.json
 ```
+
+Same agentic decisions → sealed receipt **and** a GRC Eng Club Finding (`resource.type: ai_agent_session`). The Finding is interop, not a second product. CloudTrail dual-emit is deferred.
 
 The sealed packet is the signed artifact for the agent's rules of engagement and the coding-agent evidence of controls (declared tools + PEP allow/deny). It is not a live AWS session.

@@ -26,13 +26,14 @@ bun install && bun run demo
 bun run colophon bundle verify out/demo/evidence-reader/bundle --pubkey out/demo/keys/cosign.pub
 ```
 
-The demo needs `bun`, `opa`, `cosign` (3.x), and `jq` on the path. It runs offline after install: two declared agents are gated through the MCP gate, three foreign PEP fixtures (a Claude Code hook log, a CloudTrail export, an AgentCore/Dogwood RoE replay) are normalized, and five packets are signed with a throwaway local key pair and verified. It exits 1 if signing fails. It prints `SIGNATURE: <path>` only after `bundle verify` passed.
+The demo needs `bun`, `opa`, `cosign` (3.x), and `jq` on the path. It runs offline after install: two declared agents are gated through the MCP gate, three foreign PEP fixtures (a Claude Code hook log, a CloudTrail export, an AgentCore/Dogwood RoE replay) are normalized, and five packets are signed with a throwaway local key pair and verified. Alongside each packet it writes GRC Eng Club Finding JSON (same decisions, club-readable). It exits 1 if signing fails. It prints `SIGNATURE: <path>` only after `bundle verify` passed.
 
 AJ / community AgentCore demo (fixture → sealed packet → verify):
 
 ```
 bun run demo
 bun packages/cli/main.ts bundle verify out/demo/agentcore-dogwood/bundle --pubkey out/demo/keys/cosign.pub
+bun packages/cli/main.ts export finding validate out/demo/agentcore-dogwood/findings/*.finding.json
 ```
 
 Trace-only ingest (same `normalize` pattern as `claude-hook`):
@@ -96,6 +97,8 @@ Optional Declaration `pep` (foreign PEP binding): when the PEP is AgentCore + Do
 | Custody | DecisionDraft → Trace → Evidence → OSCAL AR → Cosign | yes |
 
 `ENFORCE` means the Gateway applied the decision. `LOG_ONLY` means Dogwood evaluated and Colophon still records the would-be allow/deny; it is not proof the call was blocked.
+
+Finding export (`colophon export finding`) is **interop** with [GRC Eng Club](https://github.com/GRCEngClub/claude-grc-engineering) `finding.schema.json` v1. The Colophon spine remains the signed agentic receipt. CloudTrail dual-emit is deferred. See [`packages/export/finding/README.md`](packages/export/finding/README.md).
 
 ## Adapters
 
