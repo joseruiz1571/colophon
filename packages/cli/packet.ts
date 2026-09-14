@@ -40,6 +40,9 @@ export type PacketOutput = {
   signaturePath: string;
   decisions: Decision[];
   results: ControlResult[];
+  sessionId: string;
+  source: string;
+  task: string;
 };
 
 const CATALOG_PATH = join(import.meta.dir, "../catalog/controls.yaml");
@@ -134,5 +137,5 @@ export function buildPacket(i: PacketInput): PacketOutput {
 
   const outcome = verifyBundle(i.signer.mode === "key" ? { dir: bundleDir, pubkey: i.signer.pub } : { dir: bundleDir, certIdentityRegexp: i.signer.certIdentityRegexp, oidcIssuer: i.signer.oidcIssuer });
   if (!outcome.ok) throw new Error(`bundle verify failed right after signing ${relative(process.cwd(), bundleDir)}: ${outcome.failures.join("; ")}`);
-  return { name: i.name, bundleDir, signaturePath, decisions, results };
+  return { name: i.name, bundleDir, signaturePath, decisions, results, sessionId: i.sessionId, source: i.source, task: i.task };
 }

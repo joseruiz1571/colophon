@@ -50,6 +50,7 @@ colophon/
     report/      OSCAL AR 1.2.3 + narrative + back-matter rlinks
     bundle/      manifest, sign, verify
     adapters/    colophon-gate, claude-hook (fixture), aws-config (CloudTrail/IAM fixture), agentcore-dogwood (AgentCore+Dogwood fixture; no live AWS)
+    export/      GRC Eng Club Finding v1 speaker (Decision stream → finding.schema.json; not a collector)
     cli/         `colophon` entry point
     fixtures/    declarations, scenarios, gate inputs, hook events, aws, upstream tree
   tests/         unit tests + probes.ts (runs every probe below from a fresh clone)
@@ -128,12 +129,18 @@ colophon/
 | S32 | The aws-config adapter is an interface plus a fixture reader shaped like CloudTrail `LookupEvents`, IAM `GetRolePolicy`, and S3 `GetBucketEncryption`; it emits Decisions (AccessDenied → deny) and evidence; no AWS SDK is a dependency and no live client exists. | `$CLI normalize aws-config packages/fixtures/aws --out out/probe/aws && jq -r '.effect' out/probe/aws/trace/*.jsonl \| sort \| uniq -c; jq -r '(.dependencies + .devDependencies)\|keys[]' package.json \| grep -c aws; grep -rn 'LiveAws\|@aws-sdk' packages \| wc -l` | both `allow` and `deny` present; `0`; `0` |
 | S38 | The agentcore-dogwood adapter normalizes fixture AgentCore/Dogwood AuthorizeAction events (approve-before-act, out-of-scope, rate-limit, simple allow) into chained Decisions; missing/unknown decisions deny fail-closed (`AGENTCORE-NO-DECISION`); the demo seals a verifiable packet; no AWS SDK and no live CloudWatch/EventBridge client. | `$CLI normalize agentcore-dogwood packages/fixtures/agentcore-dogwood/session.jsonl --out out/probe/ac && $CLI trace verify out/probe/ac/trace/*.jsonl && $CLI bundle verify $OUT/agentcore-dogwood/bundle --pubkey $OUT/keys/cosign.pub && $CLI normalize agentcore-dogwood packages/fixtures/agentcore-dogwood/no-decision.jsonl --out out/probe/ac-fc` | exits 0; source `agentcore-dogwood`; deny rule ids include `DW-APPROVE-BEFORE-ACT`, `DW-OUT-OF-SCOPE`, `DW-RATE-LIMIT`; fail-closed fixture names `AGENTCORE-NO-DECISION`; no AWS SDK |
 
+### F9 · Club Finding export
+
+| # | Claim | Probe | Pass |
+|---|---|---|---|
+| S39 | `colophon export finding` maps sealed Decisions to GRC Eng Club `finding.schema.json` v1 (resource `ai_agent_session`, Colophon COL-* evaluations, no invented SCF ids); the demo writes Finding JSON **beside** the AgentCore/Dogwood packet (not inside the Cosign bundle); `$CLI export finding validate` exits 0 on those files. | `$CLI normalize agentcore-dogwood packages/fixtures/agentcore-dogwood/session.jsonl --out out/probe/ac-find && $CLI export finding --from out/probe/ac-find --out out/probe/findings && $CLI export finding validate out/probe/findings/*.finding.json && $CLI export finding validate $OUT/agentcore-dogwood/findings/*.finding.json` | all exit 0; output names `finding.schema.json v1.0.0`, `ai_agent_session`, `ac-roe-0001`; demo finding includes `COL-01`; findings dir is not listed in the packet manifest |
+
 ### F8 · Docs and CI
 
 | # | Claim | Probe | Pass |
 |---|---|---|---|
 | S33 | README states the one-sentence product, the design rule, a proves / does-not-prove table, exactly the two commands, and points at STATUS.md. | `grep -c 'Custody is provable. Judgment is not.' README.md; grep -c 'bun install && bun run demo' README.md; grep -c 'bundle verify' README.md; grep -c 'STATUS.md' README.md` | all ≥ 1 |
-| S34 | STATUS.md has one row per claim S1–S38 and A1–A3; every `done` row names the probe run and the session date. | `grep -cE '^\| (S[0-9]+\|A[0-9]+) ' STATUS.md` | `41` |
+| S34 | STATUS.md has one row per claim S1–S39 and A1–A3; every `done` row names the probe run and the session date. | `grep -cE '^\| (S[0-9]+\|A[0-9]+) ' STATUS.md` | `42` |
 | S35 | DECISIONS.md records only decisions made in this repo, each with a rationale; it contains no operator brief. | `grep -ci 'operator brief' DECISIONS.md; grep -c '^### ' DECISIONS.md` | `0`; ≥ 8 |
 | S36 | `bun test` passes and `bun run typecheck` exits 0. | `bun test 2>&1 \| tail -3; bun run typecheck` | 0 fail; exit 0 |
 | S37 | `.github/workflows/ci.yml` pins Bun and Cosign 3.x, runs `bun install --frozen-lockfile`, typecheck, `bun test`, `opa test`, `bun run demo`, `bun tests/probes.ts`, asserts a `*.sigstore.json` exists, and runs `bundle verify`; signing in CI is keyless with a pinned certificate identity and issuer. | `grep -E 'cosign-installer\|cosign-release\|bun-version\|frozen-lockfile\|opa test\|bun run demo\|probes.ts\|sigstore.json\|bundle verify\|certificate-identity' .github/workflows/ci.yml \| wc -l` | ≥ 9 |

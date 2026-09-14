@@ -1,7 +1,8 @@
 /**
  * bun run demo: declarations → signed records → two gated sessions through
- * the MCP gate → three foreign-adapter sessions → five signed, verified packets.
- * Exits 1 on the first failure. Prints SIGNATURE: only after verify passed.
+ * the MCP gate → three foreign-adapter sessions → five signed, verified packets
+ * plus GRC Eng Club Finding JSON beside each packet. Exits 1 on the first
+ * failure. Prints SIGNATURE: only after verify passed.
  */
 import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -11,9 +12,10 @@ import { normalizeClaudeHook } from "../adapters/claude-hook/index.ts";
 import { cosignVersion, generateKeyPair, offlineSigningConfig, signBlobKeyless, signBlobWithKey, verifyBlob } from "../bundle/sign.ts";
 import { loadScenario, runScenario } from "../gate/agent.ts";
 import { bindRecord } from "../gate/server.ts";
-import { buildRecord, loadDeclaration } from "../schema/record.ts";
+import { buildRecord, loadDeclaration, type ColophonRecord } from "../schema/record.ts";
 import { TraceWriter } from "../trace/trace.ts";
 import { buildPacket, type PacketOutput, type Signer } from "./packet.ts";
+import { buildFindings, writeFindings } from "../export/finding/index.ts";
 
 const FIXTURES = resolve(import.meta.dir, "../fixtures");
 export const DEMO_KEY_PASSWORD = "colophon-demo";
@@ -22,6 +24,21 @@ export type DemoOptions = { outRoot: string; keyless: boolean };
 
 function log(msg: string): void {
   process.stdout.write(msg + "\n");
+}
+
+function emitFindings(p: PacketOutput, record: ColophonRecord | null): void {
+  const dir = join(p.bundleDir, "..", "findings");
+  const docs = buildFindings({
+    decisions: p.decisions,
+    sessionId: p.sessionId,
+    source: p.source,
+    catalogResults: p.results,
+    record,
+    task: p.task,
+  });
+  const written = writeFindings(dir, docs);
+  const nEval = docs.reduce((n, d) => n + d.evaluations.length, 0);
+  log(`findings ${p.name}: ${written.length} document(s), ${nEval} evaluations (finding.schema.json v1) → ${written[0]!.path.replace(resolve(dir, "../..") + "/", "")}`);
 }
 
 export async function runDemo(o: DemoOptions): Promise<PacketOutput[]> {
@@ -80,8 +97,10 @@ export async function runDemo(o: DemoOptions): Promise<PacketOutput[]> {
     const refused = run.outcomes.filter((x) => x.refused).length;
     log(`session ${scenario.agent}: ${run.outcomes.length} calls, ${refused} refused; tools exposed: ${run.tools.join(", ")}`);
     const bound = bindRecord(rec.path, pubkeyArg || undefined, signer.mode === "keyless" ? signer : undefined);
-    packets.push(buildPacket({ name: scenario.agent, source: "colophon-gate", sessionId, task: scenario.task, outRoot, tracePath, record: { path: rec.path, sigPath: rec.sigPath, record: bound }, selftestPath: selftestOut, signer }));
-    log(`packet  ${scenario.agent}: ${packets.at(-1)!.bundleDir.replace(outRoot + "/", "")}`);
+    const packet = buildPacket({ name: scenario.agent, source: "colophon-gate", sessionId, task: scenario.task, outRoot, tracePath, record: { path: rec.path, sigPath: rec.sigPath, record: bound }, selftestPath: selftestOut, signer });
+    packets.push(packet);
+    emitFindings(packet, bound);
+    log(`packet  ${scenario.agent}: ${packet.bundleDir.replace(outRoot + "/", "")}`);
   }
 
   // 3. Foreign PEP: Claude Code hook fixture
@@ -93,6 +112,7 @@ export async function runDemo(o: DemoOptions): Promise<PacketOutput[]> {
     for (const d of n.drafts) w.append(d);
     w.seal();
     packets.push(buildPacket({ name: "claude-hook", source: "claude-hook", sessionId: n.sessionId, task: n.task, outRoot, tracePath, signer }));
+    emitFindings(packets.at(-1)!, null);
     log(`packet  claude-hook: ${n.drafts.length} hook events normalized → ${packets.at(-1)!.bundleDir.replace(outRoot + "/", "")}`);
   }
 
@@ -105,6 +125,7 @@ export async function runDemo(o: DemoOptions): Promise<PacketOutput[]> {
     for (const d of n.drafts) w.append(d);
     w.seal();
     packets.push(buildPacket({ name: "aws-config", source: "aws-config", sessionId: n.sessionId, task: n.task, outRoot, tracePath, extraEvidence: n.evidence, signer }));
+    emitFindings(packets.at(-1)!, null);
     log(`packet  aws-config: ${n.drafts.length} CloudTrail events normalized (fixture only) → ${packets.at(-1)!.bundleDir.replace(outRoot + "/", "")}`);
   }
 
@@ -121,6 +142,7 @@ export async function runDemo(o: DemoOptions): Promise<PacketOutput[]> {
     for (const d of drafts) w.append(d);
     w.seal();
     packets.push(buildPacket({ name: "agentcore-dogwood", source: "agentcore-dogwood", sessionId: n.sessionId, task: n.task, outRoot, tracePath, record: { path: rec.path, sigPath: rec.sigPath, record: bound }, extraEvidence: n.evidence, signer }));
+    emitFindings(packets.at(-1)!, bound);
     log(`packet  agentcore-dogwood: ${drafts.length} AgentCore/Dogwood decisions normalized (fixture only) → ${packets.at(-1)!.bundleDir.replace(outRoot + "/", "")}`);
   }
 
