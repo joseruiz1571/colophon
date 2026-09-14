@@ -1,10 +1,11 @@
 /**
  * bun run demo: declarations → signed records → two gated sessions through
- * the MCP gate → two foreign-adapter sessions → four signed, verified packets.
+ * the MCP gate → three foreign-adapter sessions → five signed, verified packets.
  * Exits 1 on the first failure. Prints SIGNATURE: only after verify passed.
  */
 import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { normalizeAgentcoreDogwood } from "../adapters/agentcore-dogwood/index.ts";
 import { FixtureAwsConfigProvider, normalizeAwsConfig } from "../adapters/aws-config/index.ts";
 import { normalizeClaudeHook } from "../adapters/claude-hook/index.ts";
 import { cosignVersion, generateKeyPair, offlineSigningConfig, signBlobKeyless, signBlobWithKey, verifyBlob } from "../bundle/sign.ts";
@@ -107,7 +108,23 @@ export async function runDemo(o: DemoOptions): Promise<PacketOutput[]> {
     log(`packet  aws-config: ${n.drafts.length} CloudTrail events normalized (fixture only) → ${packets.at(-1)!.bundleDir.replace(outRoot + "/", "")}`);
   }
 
-  // 5. Summary
+  // 5. Foreign PEP: AgentCore Gateway + Dogwood fixture (no live AWS)
+  {
+    const rec = records.get("red-team-coder");
+    if (!rec) throw new Error("demo declarations must include red-team-coder (AgentCore/Dogwood RoE Record)");
+    const n = normalizeAgentcoreDogwood(join(FIXTURES, "agentcore-dogwood", "session.jsonl"));
+    const bound = bindRecord(rec.path, pubkeyArg || undefined, signer.mode === "keyless" ? signer : undefined);
+    const drafts = n.drafts.map((d) => ({ ...d, record_sha256: bound.canonical_sha256 }));
+    const tracePath = join(outRoot, "agentcore-dogwood", "trace", `${n.sessionId}.jsonl`);
+    rmSync(tracePath, { force: true });
+    const w = new TraceWriter(tracePath);
+    for (const d of drafts) w.append(d);
+    w.seal();
+    packets.push(buildPacket({ name: "agentcore-dogwood", source: "agentcore-dogwood", sessionId: n.sessionId, task: n.task, outRoot, tracePath, record: { path: rec.path, sigPath: rec.sigPath, record: bound }, extraEvidence: n.evidence, signer }));
+    log(`packet  agentcore-dogwood: ${drafts.length} AgentCore/Dogwood decisions normalized (fixture only) → ${packets.at(-1)!.bundleDir.replace(outRoot + "/", "")}`);
+  }
+
+  // 6. Summary
   log("");
   log("| packet | decisions | allow | deny | escalate | deny rule ids | controls satisfied |");
   log("|---|---|---|---|---|---|---|");

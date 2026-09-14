@@ -71,6 +71,22 @@
       "properties": {
         "a2a_card_uri": { "type": "string", "format": "uri", "description": "Optional citation of an A2A Agent Card. Identity only; never a permission source." }
       }
+    },
+    "pep": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional foreign PEP binding on the signed Record. When the PEP is AgentCore Gateway + Dogwood, name the MCP tool schema, the Dogwood policy set (id + version/hash), the Gateway id if known, and ENFORCE vs LOG_ONLY. Colophon does not reimplement that policy; this is the declared allow/deny boundary the packet is evidence of.",
+      "required": ["kind", "enforcement_mode"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1, "description": "Foreign PEP name. Use agentcore-dogwood for AgentCore Gateway + Dogwood. Not aws-config (CloudTrail/IAM is a separate adapter)." },
+        "enforcement_mode": { "type": "string", "enum": ["ENFORCE", "LOG_ONLY"], "description": "ENFORCE: the Gateway applies allow/deny. LOG_ONLY: Dogwood evaluates and Colophon records the would-be decision; the Gateway does not block." },
+        "tool_schema_ref": { "type": "string", "minLength": 1, "description": "Agent/MCP tool schema reference (URI or repo-relative path). What tools were declared." },
+        "policy_set_id": { "type": "string", "minLength": 1 },
+        "policy_set_version": { "type": "string", "minLength": 1 },
+        "policy_set_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "SHA-256 of the Dogwood/Cedar policy set bytes the Gateway evaluated." },
+        "policy_engine_id": { "type": "string", "minLength": 1 },
+        "gateway_id": { "type": "string", "minLength": 1, "description": "AgentCore Gateway id or ARN, if known." }
+      }
     }
   }
 }

@@ -7,7 +7,7 @@
   "additionalProperties": false,
   "required": ["source", "effect", "rule_ids", "reasons", "tool", "args_sha256", "ts", "prev_sha256", "this_sha256"],
   "properties": {
-    "source": { "type": "string", "minLength": 1, "description": "colophon-gate | claude-hook | aws-config | any other PEP name" },
+    "source": { "type": "string", "minLength": 1, "description": "colophon-gate | claude-hook | aws-config | agentcore-dogwood | any other PEP name" },
     "effect": { "type": "string", "enum": ["allow", "deny", "escalate"] },
     "rule_ids": { "type": "array", "items": { "type": "string", "minLength": 1 } },
     "reasons": {

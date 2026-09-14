@@ -11,7 +11,7 @@ export type Effect = "allow" | "deny" | "escalate";
 export type Reason = { field: string; value: unknown };
 
 export type Decision = {
-  source: "colophon-gate" | "claude-hook" | "aws-config" | string;
+  source: "colophon-gate" | "claude-hook" | "aws-config" | "agentcore-dogwood" | string;
   effect: Effect;
   rule_ids: string[];
   reasons: Reason[];

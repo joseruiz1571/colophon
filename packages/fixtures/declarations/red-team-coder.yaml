@@ -1,0 +1,45 @@
+# red-team-coder: coding agent under an AI red-team rules of engagement.
+# High risk. The PEP is AgentCore Gateway + Dogwood (foreign); this Record
+# names the declared tools and the policy set, it does not reimplement them.
+# Bound in the agentcore-dogwood demo packet as the signed RoE artifact.
+id: b7e4c2a1-8d3f-4e2b-9c1a-6f5e4d3c2b1a
+name: red-team-coder
+owner: red-team@acme.example
+risk_tier: high
+autonomy_level: L3
+tools:
+  - name: repo.read_file
+    data_access: read
+    data_classes: [public, internal]
+  - name: repo.git_push
+    data_access: write
+    data_classes: [internal]
+  - name: approvals.approve
+    data_access: none
+    data_classes: []
+  - name: shell.run
+    data_access: none
+    data_classes: []
+data_classes: [public, internal]
+sandbox:
+  write_paths: ["out/red-team-coder/"]
+max_scopes: []
+kill_switch:
+  available: true
+  mechanism: "detach the AgentCore Gateway policy engine (ENFORCE) and revoke the engagement workload identity"
+review_due: "2027-03-31"
+control_mappings:
+  - { control_id: "LLM06", framework: OWASP-LLM-TOP10 }
+  - { control_id: "GOVERN-1.1", framework: NIST-AI-RMF }
+  - { control_id: "AC-6", framework: NIST-800-53 }
+pep:
+  kind: agentcore-dogwood
+  enforcement_mode: ENFORCE
+  tool_schema_ref: "https://agents.acme.example/mcp/red-team-coder/tools.json"
+  policy_set_id: roe-red-team
+  policy_set_version: "1"
+  policy_set_hash: a524a1ba6b93aa2e3a819e789bf5425c6817175b2ff2fe2942cfcd65aa4cfd51
+  policy_engine_id: RoeEngine-abc123xyz0
+  gateway_id: "arn:aws:bedrock-agentcore:us-west-2:123456789012:gateway/roe-red-team"
+identity:
+  a2a_card_uri: "https://agents.acme.example/.well-known/red-team-coder.json"

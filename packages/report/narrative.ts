@@ -38,6 +38,26 @@ export function buildNarrative(n: NarrativeInput): string {
   lines.push("");
   lines.push(`Source (policy enforcement point): \`${n.source}\`. ${n.record ? `Bound Record: \`${n.record.declaration.name}\` (sha256 \`${n.record.canonical_sha256}\`), owner ${n.record.declaration.owner}, risk tier ${n.record.declaration.risk_tier}, autonomy ${n.record.declaration.autonomy_level}.` : "No Record is bound: decisions come from a foreign PEP and are assessed as-is."}`);
   lines.push("");
+  if (n.source === "agentcore-dogwood" || n.record?.declaration.pep) {
+    const pep = n.record?.declaration.pep;
+    lines.push("## Declared rules of engagement (foreign PEP)");
+    lines.push("");
+    lines.push("This packet is a **signed artifact for agent rules of engagement** (including AI red-team scope assurance): the declared allow/deny boundary as a reconstructible, signed packet. It is also **coding-agent evidence of controls** — which tools were declared, what the PEP allowed or denied — portable for audit sampling, second-party assurance, and vendor attestations.");
+    lines.push("");
+    lines.push("AgentCore/Dogwood enforce; Colophon makes the decisions portable evidence. Colophon does not reimplement Dogwood in Rego.");
+    lines.push("");
+    if (pep) {
+      lines.push(`- PEP kind: \`${pep.kind}\`. Enforcement mode: **${pep.enforcement_mode}**${pep.enforcement_mode === "LOG_ONLY" ? " (evaluated, not applied at the Gateway — a deny here is a would-deny)" : " (Gateway applied allow/deny)"}.`);
+      if (pep.tool_schema_ref) lines.push(`- Agent/MCP tool schema: \`${pep.tool_schema_ref}\`.`);
+      if (pep.policy_set_id) lines.push(`- Dogwood policy set: \`${pep.policy_set_id}\`${pep.policy_set_version ? ` version ${pep.policy_set_version}` : ""}${pep.policy_set_hash ? ` (sha256 \`${pep.policy_set_hash}\`)` : ""}.`);
+      if (pep.policy_engine_id) lines.push(`- Policy engine: \`${pep.policy_engine_id}\`.`);
+      if (pep.gateway_id) lines.push(`- Gateway: \`${pep.gateway_id}\`.`);
+    } else {
+      lines.push("- No Record `pep` binding was present; decisions are assessed as a foreign PEP replay.");
+    }
+    lines.push("- Live CloudWatch/EventBridge ingest is not claimed (Phase 4 deferred). `aws-config` (CloudTrail/IAM) is a separate infrastructure-PEP adapter.");
+    lines.push("");
+  }
   lines.push("## What was asked");
   lines.push("");
   lines.push(n.task);
