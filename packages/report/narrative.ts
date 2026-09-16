@@ -5,7 +5,7 @@
  * reported not-satisfied by the catalog and the narrative repeats that.
  */
 import type { ControlResult } from "../catalog/checks.ts";
-import type { Decision } from "../normalize/decision.ts";
+import { bindingReasons, contextReasons, explanationReasons, type Decision } from "../normalize/decision.ts";
 import type { ColophonRecord } from "../schema/record.ts";
 
 export type NarrativeInput = {
@@ -69,7 +69,7 @@ export function buildNarrative(n: NarrativeInput): string {
   lines.push("| # | tool | effect | rule ids | binding field | value |");
   lines.push("|---|---|---|---|---|---|");
   for (const d of n.decisions) {
-    const r0 = d.reasons[0];
+    const r0 = bindingReasons(d)[0] ?? d.reasons[0];
     lines.push(`| ${d.call_index ?? ""} | \`${d.tool}\` ${primaryArg(d)} | ${d.effect} | ${d.rule_ids.join(", ")} | \`${r0?.field ?? ""}\` | ${JSON.stringify(r0?.value ?? "")} |`);
   }
   lines.push("");
@@ -77,7 +77,13 @@ export function buildNarrative(n: NarrativeInput): string {
     lines.push("## What was refused, and why");
     lines.push("");
     for (const d of denies) {
-      lines.push(`- Call ${d.call_index ?? "?"} \`${d.tool}\` ${primaryArg(d)}: refused under ${d.rule_ids.map((r) => `\`${r}\``).join(", ")}. ${d.reasons.map((r) => `Bound by \`${r.field}\`; the value \`${JSON.stringify(r.value)}\` fell outside it.`).join(" ")}`);
+      // Only binding reasons are bounds. The PEP's own words are quoted as
+      // they were; context (principal, request id, flags) is listed, not
+      // rendered as something the value "fell outside".
+      const said = explanationReasons(d).map((r) => `The PEP said: "${String(r.value)}".`);
+      const bounds = bindingReasons(d).map((r) => `Bound by \`${r.field}\`; the value \`${JSON.stringify(r.value)}\` fell outside it.`);
+      const ctx = contextReasons(d).map((r) => `${r.field.split(".").pop()}=${JSON.stringify(r.value)}`);
+      lines.push(`- Call ${d.call_index ?? "?"} \`${d.tool}\` ${primaryArg(d)}: refused under ${d.rule_ids.map((r) => `\`${r}\``).join(", ")}. ${[...said, ...bounds].join(" ")}${ctx.length ? ` (context: ${ctx.join(", ")})` : ""}`);
     }
     lines.push("");
   } else {

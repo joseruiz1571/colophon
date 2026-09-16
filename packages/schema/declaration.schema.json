@@ -85,7 +85,8 @@
         "policy_set_version": { "type": "string", "minLength": 1 },
         "policy_set_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "SHA-256 of the Dogwood/Cedar policy set bytes the Gateway evaluated." },
         "policy_engine_id": { "type": "string", "minLength": 1 },
-        "gateway_id": { "type": "string", "minLength": 1, "description": "AgentCore Gateway id or ARN, if known." }
+        "gateway_id": { "type": "string", "minLength": 1, "description": "AgentCore Gateway id or ARN, if known." },
+        "tool_name_prefix": { "type": "string", "minLength": 1, "description": "Prefix the foreign PEP puts on tool names as recorded (AgentCore Gateway: `<TargetName>___`). COL-05 strips it before re-evaluating an executed call against the declared tools. A naming map, not a policy." }
       }
     }
   }

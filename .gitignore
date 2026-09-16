@@ -2,3 +2,11 @@ node_modules/
 out/
 *.log
 .DS_Store
+
+# Never commit local keys or environment. Demo keys are generated per run under out/.
+.env
+.env.*
+*.pem
+*.key
+cosign.key
+cosign.pub

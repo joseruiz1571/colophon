@@ -18,7 +18,8 @@
         "required": ["field", "value"],
         "properties": {
           "field": { "type": "string", "minLength": 1, "description": "The Record (or foreign policy) field that bound the decision." },
-          "value": { "description": "The value that satisfied or violated it. Never a raw secret." }
+          "value": { "description": "The value that satisfied or violated it. Never a raw secret." },
+          "role": { "type": "string", "enum": ["binding", "explanation", "context"], "description": "Optional. binding (default): the field bounded the decision. explanation: the PEP's own reason text. context: provenance (principal, request id, flags) that bound nothing." }
         }
       }
     },

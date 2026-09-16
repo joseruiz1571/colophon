@@ -1,7 +1,6 @@
 {
   "session_id": "7461903f-e0c0-41ce-844b-87d43dcb1a23",
   "region": "us-east-1",
-  "account_last4": "4972",
   "gateway_id": "colophon-roe-gateway-dwg0z4emza",
   "gateway_url": "https://colophon-roe-gateway-dwg0z4emza.gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp",
   "policy_engine": "colophon_roe_engine-9m92e08rix",
@@ -16,5 +15,5 @@
   "target": "StatusTarget",
   "lambda": "colophon-roe-tools",
   "log_group": "APPLICATION_LOGS",
-  "note": "Capture metadata for AgentCore Gateway APPLICATION_LOGS. Session id is not in the log body; Colophon requires it from this sidecar or --session."
+  "note": "Capture metadata for AgentCore Gateway APPLICATION_LOGS. Session id is not in the log body; Colophon requires it from this sidecar or --session. Account id is redacted in the log lines and omitted here; the IAM principal name is generalized to roe-operator."
 }

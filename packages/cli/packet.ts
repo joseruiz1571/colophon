@@ -47,10 +47,17 @@ export type PacketOutput = {
 
 const CATALOG_PATH = join(import.meta.dir, "../catalog/controls.yaml");
 
+/** Paths inside a packet are relative to the directory it was built from, never the build machine's absolute path: a portable receipt must read the same on every machine. */
+export function portablePath(p: string): string {
+  const r = relative(process.cwd(), p);
+  return r.length > 0 && !r.startsWith("..") ? r : p;
+}
+
 export function verifyCommandFor(signer: Signer, bundleDir: string): string {
+  const b = portablePath(bundleDir);
   return signer.mode === "key"
-    ? `bun packages/cli/main.ts bundle verify ${bundleDir} --pubkey ${signer.pub}\n# or, with cosign alone:\ncosign verify-blob --key ${signer.pub} --bundle ${bundleDir}/manifest.sigstore.json --insecure-ignore-tlog ${bundleDir}/manifest.json`
-    : `bun packages/cli/main.ts bundle verify ${bundleDir} --certificate-identity-regexp '${signer.certIdentityRegexp}' --oidc-issuer ${signer.oidcIssuer}`;
+    ? `bun packages/cli/main.ts bundle verify ${b} --pubkey ${portablePath(signer.pub)}\n# or, with cosign alone:\ncosign verify-blob --key ${portablePath(signer.pub)} --bundle ${b}/manifest.sigstore.json --insecure-ignore-tlog ${b}/manifest.json`
+    : `bun packages/cli/main.ts bundle verify ${b} --certificate-identity-regexp '${signer.certIdentityRegexp}' --oidc-issuer ${signer.oidcIssuer}`;
 }
 
 /** Assess-only: evidence + AR + narrative into <out>/{evidence,report}. No bundle, no signature. */
@@ -128,6 +135,15 @@ export function buildPacket(i: PacketInput): PacketOutput {
   rmSync(stage, { recursive: true, force: true });
   rmSync(bundleDir, { recursive: true, force: true });
   const { results, decisions } = assessToDir({ ...i, out: stage, verifyCommand: verifyCommandFor(i.signer, bundleDir) });
+
+  // A credential-shaped value that survived redaction is not sealed into a
+  // signed packet with a red row next to it. Refuse before the bundle exists,
+  // and remove the staged copy so the value is not left under out/.
+  const leak = results.find((r) => r.control.check === "secrets-redacted" && r.state === "not-satisfied");
+  if (leak) {
+    rmSync(stage, { recursive: true, force: true });
+    throw new Error(`refusing to sign ${i.name}: ${leak.control.id} not-satisfied — ${leak.rationale}`);
+  }
 
   createBundle(stage, bundleDir);
   const manifest = join(bundleDir, "manifest.json");

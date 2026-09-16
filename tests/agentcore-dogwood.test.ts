@@ -154,7 +154,7 @@ describe("agentcore-dogwood adapter", () => {
     expect(n.drafts[2]!.args_redacted).toEqual({ action: "exfil" });
     expect(n.drafts[3]!.args_redacted).toEqual({ action: "exfil" });
     expect(n.drafts[4]!.args_redacted).toEqual({ action: "other" });
-    expect(n.drafts[1]!.reasons.some((r) => r.field.endsWith("principal.entityId") && String(r.value).includes("jose-admin"))).toBe(true);
+    expect(n.drafts[1]!.reasons.some((r) => r.field.endsWith("principal.entityId") && String(r.value).includes("roe-operator"))).toBe(true);
     expect(n.drafts[1]!.reasons.some((r) => r.field.endsWith("request_id") && r.value === "c3b0b8bc-fb65-41d4-9a2b-a033ad29fdaf")).toBe(true);
     expect(n.drafts[1]!.reasons.some((r) => r.field.endsWith("temporal_evaluation_invoked") && r.value === true)).toBe(true);
     expect(n.drafts[1]!.reasons.some((r) => /denied by default/.test(String(r.value)))).toBe(true);

@@ -21,6 +21,8 @@ export type PepBinding = {
   policy_set_hash?: string;
   policy_engine_id?: string;
   gateway_id?: string;
+  /** Prefix the PEP records on tool names (AgentCore Gateway: `<Target>___`); COL-05 strips it before re-evaluation. */
+  tool_name_prefix?: string;
 };
 
 export type Declaration = {

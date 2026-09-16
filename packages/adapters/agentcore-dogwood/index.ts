@@ -25,7 +25,14 @@
  * evidence, not AgentCore/Dogwood.
  */
 import { existsSync, readFileSync } from "node:fs";
-import { argsSha256, redactArgs, type DecisionDraft, type Effect, type Reason } from "../../normalize/decision.ts";
+import { relative } from "node:path";
+import { argsSha256, redactArgs, redactString, type DecisionDraft, type Effect, type Reason } from "../../normalize/decision.ts";
+
+/** A packet is portable evidence: paths inside it are relative to the directory it was built from, never the build machine's absolute path. */
+function portable(p: string): string {
+  const r = relative(process.cwd(), p);
+  return r.length > 0 && !r.startsWith("..") ? r : p;
+}
 
 export const SOURCE = "agentcore-dogwood";
 
@@ -162,7 +169,9 @@ function primaryField(input: Record<string, unknown>): { field: string; value: u
   for (const k of ["path", "file_path", "command", "to", "url", "amount", "repo", "scopes", "action"]) {
     if (input[k] !== undefined) {
       const v = input[k];
-      return { field: `input.${k}`, value: typeof v === "string" && v.length > 120 ? v.slice(0, 117) + "..." : v };
+      // Redact before truncating: a cut token would otherwise escape the pattern.
+      const s = typeof v === "string" ? redactString(v) : v;
+      return { field: `input.${k}`, value: typeof s === "string" && s.length > 120 ? s.slice(0, 117) + "..." : s };
     }
   }
   return { field: "input", value: Object.keys(input).sort() };
@@ -186,8 +195,9 @@ export function normalizeAgentcoreEvent(e: AgentcoreEvent, index: number): Decis
     str(attr(e, "aws.agentcore.policy.authorization_reason")) ??
     (raw && EFFECTS[raw] ? `Dogwood ${effect}` : `AgentCore/Dogwood returned ${raw ?? "no decision"}; denied`);
   const mode = str(e.enforcement_mode) ?? str(attr(e, "aws.agentcore.gateway.policy.mode"));
-  const reasons: Reason[] = [{ field: "aws.agentcore.policy.authorization_reason", value: reasonText }, primaryField(input)];
-  if (mode === "LOG_ONLY") reasons.push({ field: "aws.agentcore.gateway.policy.mode", value: mode });
+  // The PEP's reason text explains; the primary argument is the bound value; the mode is context.
+  const reasons: Reason[] = [{ field: "aws.agentcore.policy.authorization_reason", value: reasonText, role: "explanation" }, primaryField(input)];
+  if (mode === "LOG_ONLY") reasons.push({ field: "aws.agentcore.gateway.policy.mode", value: mode, role: "context" });
   return {
     source: SOURCE,
     effect,
@@ -350,7 +360,7 @@ function applicationLogsTask(sessionId: string, drafts: DecisionDraft[], path: s
   return [
     "Signed artifact for agent rules of engagement (AI red-team scope assurance): the declared allow/deny boundary as a reconstructible, signed packet.",
     "Coding-agent evidence of controls: which tools were declared, what AgentCore Gateway + Dogwood allowed or denied — portable for audit sampling and second-party assurance.",
-    `AgentCore/Dogwood enforce; Colophon makes the decisions portable evidence. APPLICATION_LOGS capture for policy session ${sessionId}: ${drafts.length} Gateway policy evaluations joined on request_id from ${path} (${allows} allow, ${denies} deny). Session id is capture metadata, not a field in the log body. ${mode} + ${auth}.`,
+    `AgentCore/Dogwood enforce; Colophon makes the decisions portable evidence. APPLICATION_LOGS capture for policy session ${sessionId}: ${drafts.length} Gateway policy evaluations joined on request_id from ${portable(path)} (${allows} allow, ${denies} deny). Session id is capture metadata, not a field in the log body. ${mode} + ${auth}.`,
     "Colophon did not call CloudWatch or EventBridge; this packet is an offline ingest of captured Gateway logs.",
   ].join(" ");
 }
@@ -361,7 +371,7 @@ function authorizeActionTask(sessionId: string, drafts: DecisionDraft[], path: s
   return [
     "Signed artifact for agent rules of engagement (AI red-team scope assurance): the declared allow/deny boundary as a reconstructible, signed packet.",
     "Coding-agent evidence of controls: which tools were declared, what AgentCore Gateway + Dogwood allowed or denied — portable for audit sampling and second-party assurance.",
-    `AgentCore/Dogwood enforce; Colophon makes the decisions portable evidence. Policy session ${sessionId}: ${drafts.length} AuthorizeAction events replayed from ${path} (${allows} allow, ${denies} deny).`,
+    `AgentCore/Dogwood enforce; Colophon makes the decisions portable evidence. Policy session ${sessionId}: ${drafts.length} AuthorizeAction events replayed from ${portable(path)} (${allows} allow, ${denies} deny).`,
     "AuthorizeAction fixture replay (Dogwood CLI / span export). APPLICATION_LOGS Gateway ingest is a separate path; neither calls CloudWatch.",
   ].join(" ");
 }
@@ -404,16 +414,18 @@ function normalizeApplicationLogs(
     const rule_ids = !raw || !EFFECTS[raw] ? ["AGENTCORE-NO-DECISION"] : policies.length > 0 ? policies : ["AGENTCORE-DEFAULT-DENY"];
     const principal = asObj(policy["principal"]);
     const reasonText = str(policy["reason"]) ?? log ?? (raw && EFFECTS[raw] ? `AgentCore ${effect}` : `AgentCore/Dogwood returned ${raw ?? "no decision"}; denied`);
-    const reasons: Reason[] = [];
-    if (str(principal?.["entityId"])) reasons.push({ field: "aws.agentcore.policy.principal.entityId", value: principal!["entityId"] });
-    reasons.push({ field: "aws.agentcore.policy.authorization_reason", value: reasonText });
-    if (requestId) reasons.push({ field: "aws.agentcore.policy.request_id", value: requestId });
+    // Binding first (what the policy keyed on), then the Gateway's own words,
+    // then provenance. Only the binding reason is a bound; the narrative
+    // renders the rest as what they are.
+    const reasons: Reason[] = [primaryField(input)];
+    reasons.push({ field: "aws.agentcore.policy.authorization_reason", value: reasonText, role: "explanation" });
+    if (str(principal?.["entityId"])) reasons.push({ field: "aws.agentcore.policy.principal.entityId", value: principal!["entityId"], role: "context" });
+    if (requestId) reasons.push({ field: "aws.agentcore.policy.request_id", value: requestId, role: "context" });
     if (typeof policy["temporal_evaluation_invoked"] === "boolean") {
-      reasons.push({ field: "aws.agentcore.policy.temporal_evaluation_invoked", value: policy["temporal_evaluation_invoked"] });
+      reasons.push({ field: "aws.agentcore.policy.temporal_evaluation_invoked", value: policy["temporal_evaluation_invoked"], role: "context" });
     }
-    reasons.push(primaryField(input));
     const mode = str(meta?.mode);
-    if (mode === "LOG_ONLY") reasons.push({ field: "aws.agentcore.gateway.policy.mode", value: mode });
+    if (mode === "LOG_ONLY") reasons.push({ field: "aws.agentcore.gateway.policy.mode", value: mode, role: "context" });
     drafts.push({
       source: SOURCE,
       effect,
@@ -454,7 +466,7 @@ function normalizeApplicationLogs(
   if (meta) {
     evidence.push({
       kind: "agentcore-capture-metadata",
-      payload: { ...meta, sidecar: metaPath, note: meta.note ?? "Session id is capture metadata; AgentCore APPLICATION_LOGS bodies do not carry it." },
+      payload: { ...meta, sidecar: metaPath ? portable(metaPath) : null, note: meta.note ?? "Session id is capture metadata; AgentCore APPLICATION_LOGS bodies do not carry it." },
     });
   }
   return {

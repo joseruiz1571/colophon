@@ -3,9 +3,11 @@
 # names the declared tools, Gateway, engine, and ENFORCE mode. It does not
 # reimplement Cedar/Dogwood. Bound in the agentcore-dogwood-live demo packet.
 # Session id for the live capture lives in the APPLICATION_LOGS sidecar, not here.
+# The Gateway records tool names as StatusTarget___<tool>; pep.tool_name_prefix
+# names that projection so COL-05 re-evaluates the declared names.
 id: c4e8a1b2-7d3f-4a91-8b2c-9e5f6a7b8c0d
 name: colophon-roe
-owner: jose-admin@acme.example
+owner: roe-operator@acme.example
 risk_tier: high
 autonomy_level: L3
 tools:
@@ -24,7 +26,7 @@ sandbox:
 max_scopes: []
 kill_switch:
   available: true
-  mechanism: "detach the AgentCore Gateway policy engine (ENFORCE) and revoke the jose-admin workload identity"
+  mechanism: "detach the AgentCore Gateway policy engine (ENFORCE) and revoke the roe-operator workload identity"
 review_due: "2027-03-31"
 control_mappings:
   - { control_id: "LLM06", framework: OWASP-LLM-TOP10 }
@@ -37,5 +39,6 @@ pep:
   policy_set_id: colophon-roe
   policy_engine_id: colophon_roe_engine-9m92e08rix
   gateway_id: colophon-roe-gateway-dwg0z4emza
+  tool_name_prefix: "StatusTarget___"
 identity:
   a2a_card_uri: "https://agents.acme.example/.well-known/colophon-roe.json"

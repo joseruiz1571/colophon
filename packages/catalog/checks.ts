@@ -9,7 +9,7 @@ import YAML from "yaml";
 import type { EvidenceStore } from "../evidence/store.ts";
 import { CitationError } from "../evidence/store.ts";
 import { decide } from "../gate/eval.ts";
-import type { Decision } from "../normalize/decision.ts";
+import { bindingReasons, CREDENTIAL_PATTERN, type Decision } from "../normalize/decision.ts";
 import type { ColophonRecord } from "../schema/record.ts";
 import type { TraceVerification } from "../trace/trace.ts";
 
@@ -46,10 +46,9 @@ export type AssessContext = {
   narrative: string;
 };
 
-const SECRET_VALUE = /(ghp_[A-Za-z0-9]{10,}|gho_[A-Za-z0-9]{10,}|github_pat_[A-Za-z0-9_]{10,}|sk-[A-Za-z0-9]{10,}|xox[bpa]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/;
-
+/** Same pattern redaction commits on (normalize/decision.ts); a survivor here is a redaction gap, and the packet builder refuses to sign it. */
 function scanForSecrets(value: unknown): string | null {
-  if (typeof value === "string") return SECRET_VALUE.test(value) ? value.slice(0, 8) + "…" : null;
+  if (typeof value === "string") return CREDENTIAL_PATTERN.test(value) ? value.slice(0, 8) + "…" : null;
   if (Array.isArray(value)) {
     for (const v of value) {
       const hit = scanForSecrets(v);
@@ -103,12 +102,12 @@ const checks: Record<string, Check> = {
     if (denies.length === 0) {
       return { control, state: "not-satisfied", rationale: `The session contains no deny decisions, so this control was not exercised. It is reported not-satisfied rather than assumed.`, cited: [ctx.ids.trace] };
     }
-    const bad = denies.filter((d) => d.rule_ids.length === 0 || d.reasons.length === 0 || !d.reasons[0] || d.reasons[0].field.length === 0);
+    const bad = denies.filter((d) => d.rule_ids.length === 0 || bindingReasons(d).length === 0 || bindingReasons(d)[0]!.field.length === 0);
     if (bad.length > 0) {
       return { control, state: "not-satisfied", rationale: `${bad.length} of ${denies.length} deny decisions lack a rule id or a binding field (e.g. call ${bad[0]!.call_index ?? "?"} on ${bad[0]!.tool}).`, cited: [ctx.ids.trace] };
     }
     const ids = [...new Set(denies.flatMap((d) => d.rule_ids))].sort();
-    const fields = [...new Set(denies.flatMap((d) => d.reasons.map((r) => r.field)))].sort();
+    const fields = [...new Set(denies.flatMap((d) => bindingReasons(d).map((r) => r.field)))].sort();
     return { control, state: "satisfied", rationale: `${denies.length} refusals, each with a rule id and a binding field. Rule ids: ${ids.join(", ")}. Fields: ${fields.join(", ")}.`, cited: [ctx.ids.trace] };
   },
 
@@ -127,15 +126,25 @@ const checks: Record<string, Check> = {
       return { control, state: "not-satisfied", rationale: `No Record bound; allowed calls from source ${ctx.source} cannot be re-evaluated against a Declaration.`, cited: [ctx.ids.trace] };
     }
     const allowed = ctx.decisions.filter((d) => d.effect === "allow");
+    // A foreign PEP may prefix tool names (AgentCore Gateway: `<Target>___<tool>`);
+    // the Record names the projection through pep.tool_name_prefix. The strip is
+    // a naming map, never a policy decision: the stripped name is what the
+    // Declaration declared, and gate.rego still decides.
+    const prefix = ctx.record.declaration.pep?.tool_name_prefix;
+    const declaredName = (tool: string) => (prefix && tool.startsWith(prefix) ? tool.slice(prefix.length) : tool);
+    const foreign = ctx.source !== "colophon-gate";
     const outside: string[] = [];
     for (const d of allowed) {
-      const v = decide(ctx.record, { name: d.tool, arguments: d.args_redacted ?? {} }, { session_id: d.session_id ?? "reeval", call_index: d.call_index ?? 0 });
+      const v = decide(ctx.record, { name: declaredName(d.tool), arguments: d.args_redacted ?? {} }, { session_id: d.session_id ?? "reeval", call_index: d.call_index ?? 0 });
       if (v.effect !== "allow") outside.push(`${d.tool}#${d.call_index ?? "?"} → ${v.rule_ids.join(",")}`);
     }
+    const scope = foreign
+      ? ` This is declaration consistency (the ${ctx.source} decisions re-checked against the bound Record through gate.rego), not a re-run of the foreign policy set${prefix ? `; tool names were mapped through pep.tool_name_prefix "${prefix}"` : ""}.`
+      : "";
     if (outside.length > 0) {
-      return { control, state: "not-satisfied", rationale: `${outside.length} of ${allowed.length} executed calls fall outside the Record on re-evaluation: ${outside.join("; ")}.`, cited: [ctx.ids.trace, ...(ctx.ids.record ? [ctx.ids.record] : [])] };
+      return { control, state: "not-satisfied", rationale: `${outside.length} of ${allowed.length} executed calls fall outside the Record on re-evaluation: ${outside.join("; ")}.${scope}`, cited: [ctx.ids.trace, ...(ctx.ids.record ? [ctx.ids.record] : [])] };
     }
-    return { control, state: "satisfied", rationale: `${allowed.length} executed calls re-evaluated against Record ${ctx.record.declaration.name} through gate.rego; all allow again.`, cited: [ctx.ids.trace, ...(ctx.ids.record ? [ctx.ids.record] : [])] };
+    return { control, state: "satisfied", rationale: `${allowed.length} executed calls re-evaluated against Record ${ctx.record.declaration.name} through gate.rego; all allow again.${scope}`, cited: [ctx.ids.trace, ...(ctx.ids.record ? [ctx.ids.record] : [])] };
   },
 
   "citation-guard": (ctx, control) => {
@@ -158,11 +167,13 @@ const checks: Record<string, Check> = {
   },
 
   "secrets-redacted": (ctx, control) => {
+    // Scan the redacted view AND the reasons: a reason that quotes an argument is
+    // the second place a value can hide.
     for (const d of ctx.decisions) {
-      const hit = scanForSecrets(d.args_redacted ?? {});
+      const hit = scanForSecrets({ args: d.args_redacted ?? {}, reasons: d.reasons });
       if (hit) return { control, state: "not-satisfied", rationale: `Decision ${d.call_index ?? "?"} (${d.tool}) carries a credential-shaped value (${hit}).`, cited: [ctx.ids.trace] };
     }
-    return { control, state: "satisfied", rationale: `${ctx.decisions.length} decisions scanned; arguments are stored as SHA-256 plus a redacted view and no credential-shaped value is present.`, cited: [ctx.ids.trace] };
+    return { control, state: "satisfied", rationale: `${ctx.decisions.length} decisions scanned (redacted arguments and reasons); arguments are stored as SHA-256 plus a redacted view and no credential-shaped value is present.`, cited: [ctx.ids.trace] };
   },
 };
 

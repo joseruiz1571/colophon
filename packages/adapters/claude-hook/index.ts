@@ -10,7 +10,13 @@
  * ("[CC-HOOK-SANDBOX] ...") or CC-HOOK-UNSPECIFIED when absent.
  */
 import { readFileSync } from "node:fs";
-import { argsSha256, redactArgs, type DecisionDraft, type Effect } from "../../normalize/decision.ts";
+import { relative } from "node:path";
+import { argsSha256, redactArgs, redactString, type DecisionDraft, type Effect } from "../../normalize/decision.ts";
+
+function portable(p: string): string {
+  const r = relative(process.cwd(), p);
+  return r.length > 0 && !r.startsWith("..") ? r : p;
+}
 
 export const SOURCE = "claude-hook";
 
@@ -30,7 +36,9 @@ function primaryField(input: Record<string, unknown>): { field: string; value: u
   for (const k of ["file_path", "command", "path", "url", "pattern"]) {
     if (input[k] !== undefined) {
       const v = input[k];
-      return { field: `tool_input.${k}`, value: typeof v === "string" && v.length > 120 ? v.slice(0, 117) + "..." : v };
+      // Redact before truncating: a cut token would otherwise escape the pattern.
+      const s = typeof v === "string" ? redactString(v) : v;
+      return { field: `tool_input.${k}`, value: typeof s === "string" && s.length > 120 ? s.slice(0, 117) + "..." : s };
     }
   }
   return { field: "tool_input", value: Object.keys(input).sort() };
@@ -49,7 +57,8 @@ export function normalizeHookEvent(e: HookEvent, index: number): DecisionDraft {
     source: SOURCE,
     effect,
     rule_ids: [ruleId],
-    reasons: [{ field: "hook.permissionDecisionReason", value: reasonText }, primaryField(input)],
+    // The hook's reason text explains; the primary input is the bound value.
+    reasons: [primaryField(input), { field: "hook.permissionDecisionReason", value: reasonText, role: "explanation" }],
     tool: e.tool_name,
     args_sha256: argsSha256(input),
     args_redacted: redactArgs(input),
@@ -69,7 +78,7 @@ export function normalizeClaudeHook(jsonlPath: string): { sessionId: string; tas
   const sessionId = events[0]?.session_id ?? "claude-hook-empty";
   return {
     sessionId,
-    task: `Claude Code session ${sessionId} in ${events[0]?.cwd ?? "?"}: ${events.length} PreToolUse events replayed from ${jsonlPath}.`,
+    task: `Claude Code session ${sessionId} in ${events[0]?.cwd ?? "?"}: ${events.length} PreToolUse events replayed from ${portable(jsonlPath)}.`,
     drafts: events.map((e, i) => normalizeHookEvent(e, i)),
   };
 }

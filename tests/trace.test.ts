@@ -25,6 +25,32 @@ describe("redaction", () => {
     expect(r["note"]).toBe("sha256:" + sha256Hex(fake));
     expect(JSON.stringify(r)).not.toContain(fake);
   });
+
+  test("a credential embedded inside a command string is committed, the command keeps its shape", () => {
+    // The dominant coding-agent case: a Bash command carrying a token in a header.
+    const fake = ["gh", "p_", "FAKE", "A".repeat(32)].join("");
+    const command = `curl -H "Authorization: Bearer ${fake}" https://api.github.example/repos`;
+    const r = redactArgs({ command, path: `https://x:${fake}@host.example/repo.git`, list: [`token=${fake}`, "plain"] });
+    const json = JSON.stringify(r);
+    expect(json).not.toContain(fake);
+    expect(r["command"]).toBe(`curl -H "Authorization: Bearer sha256:${sha256Hex(fake)}" https://api.github.example/repos`);
+    expect(r["path"]).toBe(`https://x:sha256:${sha256Hex(fake)}@host.example/repo.git`);
+    expect(r["list"]).toEqual([`token=sha256:${sha256Hex(fake)}`, "plain"]);
+    expect(JSON.stringify(redactArgs({ command: "ls -la out/" }))).toContain("ls -la out/");
+  });
+
+  test("a reason that quotes a credential is redacted at the seal, whatever adapter wrote it", () => {
+    const fake = ["gh", "p_", "FAKE", "C".repeat(32)].join("");
+    const sealed = sealDecision({ ...draft(0), reasons: [{ field: "tool_input.command", value: `curl -H "Bearer ${fake}"` }] }, null);
+    expect(JSON.stringify(sealed)).not.toContain(fake);
+    expect(sealed.reasons[0]!.value).toBe(`curl -H "Bearer sha256:${sha256Hex(fake)}"`);
+  });
+
+  test("a PEM block anywhere in a string commits the whole string", () => {
+    const pem = ["-----BEGIN ", "RSA PRIVATE KEY-----\nMIIfake\n-----END RSA PRIVATE KEY-----"].join("");
+    const r = redactArgs({ command: `echo '${pem}' > key.pem` });
+    expect(String(r["command"])).toMatch(/^sha256:[0-9a-f]{64}$/);
+  });
 });
 
 describe("trace chain", () => {

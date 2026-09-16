@@ -55,9 +55,10 @@ export async function normalizeAwsConfig(provider: AwsConfigProvider): Promise<{
       source: SOURCE,
       effect: denied ? "deny" : "allow",
       rule_ids: [denied ? `AWS-IAM-${ct.errorCode!.toUpperCase()}` : "AWS-IAM-ALLOWED"],
+      // IAM's errorCode is the bound (the policy outcome); its message explains; the caller ARN is context.
       reasons: [
-        { field: "userIdentity.arn", value: ct.userIdentity?.arn ?? "unknown" },
-        ...(denied ? [{ field: "errorMessage", value: ct.errorMessage ?? ct.errorCode }] : [{ field: "eventName", value: ev.EventName }]),
+        ...(denied ? [{ field: "errorCode", value: ct.errorCode }, { field: "errorMessage", value: ct.errorMessage ?? ct.errorCode, role: "explanation" as const }] : [{ field: "eventName", value: ev.EventName }]),
+        { field: "userIdentity.arn", value: ct.userIdentity?.arn ?? "unknown", role: "context" as const },
       ],
       tool: `${ev.EventSource}:${ev.EventName}`,
       args_sha256: argsSha256(params),

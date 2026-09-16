@@ -26,7 +26,7 @@ Join on **`request_id`**:
 | `Policy evaluation completed` | ALLOW |
 | `Policy evaluation denied request` | DENY |
 
-Mapping: `ALLOW`→allow, `DENY`→deny; `determiningPolicies` become `rule_ids`; empty list → `AGENTCORE-DEFAULT-DENY`. Reasons record the (already redacted) principal `entityId`, the Gateway `reason` string, `request_id`, and `temporal_evaluation_invoked`.
+Mapping: `ALLOW`→allow, `DENY`→deny; `determiningPolicies` become `rule_ids`; empty list → `AGENTCORE-DEFAULT-DENY`. Reasons: the primary argument is the binding reason; the Gateway `reason` string is recorded as `explanation`; the (already redacted) principal `entityId`, `request_id`, and `temporal_evaluation_invoked` are `context`. Only binding reasons render as bounds in the narrative.
 
 ```
 bun packages/cli/main.ts normalize agentcore-dogwood \
@@ -98,7 +98,7 @@ The Gateway's `policyEngineConfiguration.mode`:
 - **ENFORCE** — Dogwood's allow/deny is applied at the Gateway. The packet is evidence of what was blocked or permitted.
 - **LOG_ONLY** — Dogwood still evaluates; the Gateway does not block. Colophon records the *evaluated* decision (including would-deny) and names the mode in reasons. A LOG_ONLY deny is not proof the call was stopped.
 
-The signed Record should name the mode (see Declaration `pep`). Colophon does not promote LOG_ONLY to ENFORCE. The live RoE capture is ENFORCE with AWS_IAM named principal `jose-admin` (account id redacted).
+The signed Record should name the mode (see Declaration `pep`). Colophon does not promote LOG_ONLY to ENFORCE. The live RoE capture is ENFORCE with AWS_IAM named principal `roe-operator` (account id redacted, principal name generalized).
 
 ## Three layers
 
@@ -118,7 +118,7 @@ bun packages/cli/main.ts normalize agentcore-dogwood \
 bun packages/cli/main.ts trace verify out/probe/ac/trace/*.jsonl
 ```
 
-AJ / community demo — both AgentCore packets (synthetic AuthorizeAction RoE and live APPLICATION_LOGS) through the full packet (Trace → Evidence → OSCAL AR → Sigstore) and verify:
+Community demo — both AgentCore packets (synthetic AuthorizeAction RoE and live APPLICATION_LOGS) through the full packet (Trace → Evidence → OSCAL AR → Sigstore) and verify:
 
 ```
 bun install && bun run demo
