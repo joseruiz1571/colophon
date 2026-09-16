@@ -23,6 +23,7 @@ const NOTES: Record<string, string> = {
   S38: "AuthorizeAction fixture replay. Colophon does not reimplement Dogwood. APPLICATION_LOGS capture ingest is S40. No CloudWatch/EventBridge SDK client. aws-config remains a separate CloudTrail/IAM adapter.",
   S39: "Finding export is club interop on the Decision stream, not a CloudTrail collector. SCF control IDs are not emitted. Dual-emit of CloudTrail is deferred.",
   S40: "Phase 4 is captured APPLICATION_LOGS JSONL ingest, not a live CloudWatch collector. Session id is sidecar/CLI metadata — AgentCore Gateway logs do not carry it. ENFORCE + AWS_IAM named principal. No AWS SDK.",
+  S44: "Exercised by piping the events fixture through the `hook` command one process per call, as Claude Code does; the stdin/stdout contract is from the Claude Code hooks reference (2026-09-16). Not yet exercised inside a live Claude Code session from the build machine, which cannot nest a `claude` process; docs/claude-code.md is the recipe. About half a second per call.",
 };
 const short = (s: string) => (s.length > 150 ? s.slice(0, 147) + "…" : s);
 const rows = probes.results.map((r) => {

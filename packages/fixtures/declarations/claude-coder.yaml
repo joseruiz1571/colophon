@@ -1,0 +1,40 @@
+# claude-coder: a Claude Code session gated by the Colophon PreToolUse hook.
+# Medium risk. Reads and writes inside the repo's src/, tests/, docs/; shell
+# commands are handed to the human (ask); fetches only from the docs host.
+# Paths are relative to the session's working directory, so this Record is
+# signed once and holds on any machine. `defaults.data_class` is the
+# operator's label for a coding session; Claude Code never labels a call.
+id: 3f2b9c1d-8e4a-4c6b-9d1e-2a7b8c9d0e1f
+name: claude-coder
+owner: platform-eng@acme.example
+risk_tier: medium
+autonomy_level: L3
+tools:
+  - name: fs.read
+    data_access: read
+    data_classes: [public, internal]
+  - name: fs.write
+    data_access: write
+    data_classes: [internal]
+  - name: shell.exec
+    data_access: none
+    data_classes: []
+    requires_approval: true
+  - name: net.fetch
+    data_access: none
+    data_classes: []
+    destinations: ["https://docs.acme.example/*"]
+data_classes: [public, internal]
+sandbox:
+  write_paths: ["src/", "tests/", "docs/"]
+max_scopes: []
+kill_switch:
+  available: true
+  mechanism: "delete or rotate the Record's signature: the hook binds the Record on every call and denies everything once it no longer verifies"
+review_due: "2027-03-31"
+control_mappings:
+  - { control_id: "LLM06", framework: OWASP-LLM-TOP10 }
+  - { control_id: "MANAGE-2.2", framework: NIST-AI-RMF }
+  - { control_id: "A.6.2.6", framework: ISO-42001 }
+defaults:
+  data_class: internal

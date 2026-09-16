@@ -21,6 +21,8 @@ const ALLOWED: Record<string, RegExp[]> = {
   "adapters/agentcore-dogwood/index.ts": [/const EFFECTS: Record<string, Effect> = \{ allow: "allow", deny: "deny", ALLOW: "allow", DENY: "deny" \}/, /: "deny";$/],
   // Assessment reads a recorded effect; it never produces one.
   "catalog/checks.ts": [/\.effect === "deny"/, /\.effect !== "allow"/],
+  // The hook translates a gate verdict into Claude Code's permission vocabulary; it never produces one.
+  "hook/index.ts": [/const PERMISSION: Record<Effect, PermissionDecision> = \{ allow: "allow", deny: "deny", escalate: "ask" \}/],
 };
 let bad = 0;
 for (const f of files) {

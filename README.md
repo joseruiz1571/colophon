@@ -41,7 +41,7 @@ bun install && bun run demo
 bun run colophon bundle verify out/demo/evidence-reader/bundle --pubkey out/demo/keys/cosign.pub
 ```
 
-The demo needs `bun`, `opa`, `cosign` (3.x), and `jq` on the path. It runs offline after install: two declared agents are gated through the MCP gate, four foreign PEP fixtures (a Claude Code hook log, a CloudTrail export, an AgentCore/Dogwood AuthorizeAction RoE replay, and a live AgentCore Gateway APPLICATION_LOGS capture) are normalized, and six packets are signed with a throwaway local key pair and verified. Alongside each packet it writes GRC Eng Club Finding JSON (same decisions, club-readable). It exits 1 if signing fails. It prints `SIGNATURE: <path>` only after `bundle verify` passed.
+The demo needs `bun`, `opa`, `cosign` (3.x), and `jq` on the path. It runs offline after install: two declared agents are gated through the MCP gate, a Claude Code session is gated through the PreToolUse hook (one process per call) and sealed, four foreign PEP fixtures (a Claude Code hook log, a CloudTrail export, an AgentCore/Dogwood AuthorizeAction RoE replay, and a live AgentCore Gateway APPLICATION_LOGS capture) are normalized, and seven packets are signed with a throwaway local key pair and verified. Alongside each packet it writes GRC Eng Club Finding JSON (same decisions, club-readable). It exits 1 if signing fails. It prints `SIGNATURE: <path>` only after `bundle verify` passed.
 
 Community AgentCore demo (fixture → sealed packet → verify), including the live APPLICATION_LOGS RoE capture:
 
@@ -78,6 +78,20 @@ cosign verify-blob --key out/demo/keys/cosign.pub \
 ```
 
 (`--insecure-ignore-tlog` because the local demo signs offline with no transparency-log entry. CI signs keyless against the public Sigstore instance and verifies with a pinned certificate identity and issuer; no flag there.)
+
+## Colophon for Claude Code
+
+Declare it, run it, seal it, hand it to a stranger. Colophon runs as a Claude Code PreToolUse hook: the same `gate.rego` verdict path as the reference gate, one process per tool call.
+
+```
+bun packages/cli/main.ts record build packages/fixtures/declarations/claude-coder.yaml --out out/hook
+bun packages/cli/main.ts record sign out/hook/claude-coder.record.json --key out/demo/keys/cosign.key --password colophon-demo
+bun packages/cli/main.ts hook settings --record out/hook/claude-coder.record.json --pubkey out/demo/keys/cosign.pub --trace-dir out/hook/trace
+# paste the printed fragment into .claude/settings.json, work a session, then:
+bun packages/cli/main.ts seal --session <session_id> --trace-dir out/hook/trace --record out/hook/claude-coder.record.json --pubkey out/demo/keys/cosign.pub --key out/demo/keys/cosign.key --password colophon-demo --out out/hook/packets
+```
+
+Every call binds the Record (hash, signature, lint), decides, appends one chained line to `<trace-dir>/<session_id>.jsonl`, and answers `allow`, `deny`, or `ask` (for `escalate`). Claude tool names are projected onto declared names (`Write` → `fs.write`, `Bash` → `shell.exec`, `WebFetch` → `net.fetch`, `mcp__s__t` → `mcp.s.t`); paths inside the session's working directory become relative so one signed Record holds on any machine; the operator's `defaults.data_class` fills the label Claude Code never sends, recorded as the operator's. The hook rewrites nothing. It fails closed: malformed input, an unverifiable Record, or an OPA failure is a `deny`. The demo's `claude-coder` packet is produced through this path, not a replay. Full recipe and limits: [`docs/claude-code.md`](docs/claude-code.md).
 
 ## What the packet proves, and what it does not
 
@@ -154,7 +168,8 @@ Spec-first, agent-built, operator-graded. `SPEC.md` was written before the code,
 | adapter | status |
 |---|---|
 | `colophon-gate` | live in the demo: MCP stdio PEP, verdicts only from `packages/policy/gate.rego` via OPA |
-| `claude-hook` | fixture: PreToolUse hook events → Decisions → same catalog, signed packet |
+| `colophon-hook` | live in the demo: Claude Code PreToolUse hook, same Rego verdicts, `colophon seal` at session end |
+| `claude-hook` | fixture: a foreign hook's PreToolUse log → Decisions → same catalog, signed packet |
 | `aws-config` | interface + fixture reader only (CloudTrail LookupEvents, GetRolePolicy, GetBucketEncryption). Infrastructure PEP. No SDK, no live client. |
 | `agentcore-dogwood` | AuthorizeAction fixture replay **and** captured APPLICATION_LOGS JSONL (session id from sidecar/`--session`). No SDK, no CloudWatch client. |
 

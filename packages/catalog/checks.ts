@@ -65,6 +65,9 @@ function scanForSecrets(value: unknown): string | null {
   return null;
 }
 
+/** Transports where Colophon itself is the PEP (verdicts from gate.rego). Any other source is a foreign PEP whose decisions were normalized. */
+export const COLOPHON_PEP_SOURCES = new Set(["colophon-gate", "colophon-hook"]);
+
 type Check = (ctx: AssessContext, control: ControlDef) => ControlResult;
 
 const REQUIRED_DECLARATION_FIELDS = ["owner", "risk_tier", "autonomy_level", "tools", "data_classes", "sandbox", "max_scopes", "kill_switch", "review_due", "control_mappings"] as const;
@@ -132,7 +135,7 @@ const checks: Record<string, Check> = {
     // Declaration declared, and gate.rego still decides.
     const prefix = ctx.record.declaration.pep?.tool_name_prefix;
     const declaredName = (tool: string) => (prefix && tool.startsWith(prefix) ? tool.slice(prefix.length) : tool);
-    const foreign = ctx.source !== "colophon-gate";
+    const foreign = !COLOPHON_PEP_SOURCES.has(ctx.source);
     const outside: string[] = [];
     for (const d of allowed) {
       const v = decide(ctx.record, { name: declaredName(d.tool), arguments: d.args_redacted ?? {} }, { session_id: d.session_id ?? "reeval", call_index: d.call_index ?? 0 });

@@ -14,6 +14,7 @@ import { loadScenario, runScenario } from "../gate/agent.ts";
 import { bindRecord, lintRecord, recordSignaturePath, runGate } from "../gate/server.ts";
 import { serveUpstream } from "../gate/upstream.ts";
 import { findingsFromDir, validateFinding, writeFindings, buildFindings } from "../export/finding/index.ts";
+import { runHook, sealSession, settingsSnippet } from "../hook/index.ts";
 import { oscalVersionOf, validateOscal } from "../report/oscal.ts";
 import { buildRecord, loadDeclaration, loadRecord, verifyRecordHashes } from "../schema/record.ts";
 import { formatErrors, validateDeclaration } from "../schema/validate.ts";
@@ -70,6 +71,9 @@ const USAGE = `colophon — signed session packets for AI agent tool use
   record verify <record> --pubkey <cosign.pub> | --hash-only
   record lint <record>
   gate serve --record <r> --pubkey <pub> --trace <file> --session <id> [--self-test] --upstream <cmd...>
+  hook --record <r> --pubkey <pub> --trace-dir <dir>        (Claude Code PreToolUse on stdin → decision on stdout)
+  hook settings --record <r> --pubkey <pub> --trace-dir <dir>   (prints the .claude/settings.json fragment)
+  seal --session <id> --trace-dir <dir> --record <r> --pubkey <pub> --key <cosign.key> [--password <pw>] --out <dir> [--name <n>]
   upstream demo
   agent run --scenario <yaml> --record <r> --pubkey <pub> --out <dir> [--list-tools]
   trace verify <file>
@@ -170,6 +174,40 @@ async function main(argv: string[]): Promise<number> {
       selfTestOnly,
       selfTestOut: str(flags, "self-test-out", false) || undefined,
     });
+    return 0;
+  }
+
+  if (cmd === "hook" && sub === "settings") {
+    const snippet = settingsSnippet({ cli: resolve(import.meta.dir, "main.ts"), recordPath: str(flags, "record"), pubkeyPath: str(flags, "pubkey"), traceDir: str(flags, "trace-dir") });
+    out(JSON.stringify(snippet, null, 2));
+    return 0;
+  }
+
+  if (cmd === "hook") {
+    // Exit 0 with a JSON decision is the documented path; a deny is a decision, not a failure.
+    const raw = await Bun.stdin.text();
+    const r = runHook(raw, { recordPath: str(flags, "record"), pubkeyPath: str(flags, "pubkey", false) || undefined, traceDir: str(flags, "trace-dir") });
+    out(JSON.stringify(r.output));
+    process.stderr.write(`colophon-hook: ${r.output.hookSpecificOutput.permissionDecision} ${r.tool} ${r.verdict.rule_ids.join(",")}${r.sessionId ? "" : " (no session id; nothing recorded)"}\n`);
+    return 0;
+  }
+
+  if (cmd === "seal") {
+    const key = str(flags, "key");
+    const outRoot = str(flags, "out");
+    const p = sealSession({
+      sessionId: str(flags, "session"),
+      traceDir: str(flags, "trace-dir"),
+      recordPath: str(flags, "record"),
+      pubkeyPath: str(flags, "pubkey", false) || undefined,
+      outRoot,
+      name: str(flags, "name", false) || undefined,
+      signer: { mode: "key", key, pub: str(flags, "pubkey"), password: str(flags, "password", false), signingConfig: offlineSigningConfig(resolve(key, "..")) },
+    });
+    const sat = p.results.filter((r) => r.state === "satisfied").length;
+    out(`packet ${p.name}: ${p.decisions.length} decisions, controls ${sat}/${p.results.length}, ${p.bundleDir}`);
+    for (const c of p.results) out(`  ${c.control.id} ${c.state}`);
+    out(`SIGNATURE: ${p.signaturePath}`);
     return 0;
   }
 

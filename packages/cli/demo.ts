@@ -4,8 +4,10 @@
  * plus GRC Eng Club Finding JSON beside each packet. Exits 1 on the first
  * failure. Prints SIGNATURE: only after verify passed.
  */
-import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { sealSession } from "../hook/index.ts";
 import { normalizeAgentcoreDogwood } from "../adapters/agentcore-dogwood/index.ts";
 import { FixtureAwsConfigProvider, normalizeAwsConfig } from "../adapters/aws-config/index.ts";
 import { normalizeClaudeHook } from "../adapters/claude-hook/index.ts";
@@ -114,6 +116,32 @@ export async function runDemo(o: DemoOptions): Promise<PacketOutput[]> {
     packets.push(buildPacket({ name: "claude-hook", source: "claude-hook", sessionId: n.sessionId, task: n.task, outRoot, tracePath, signer }));
     emitFindings(packets.at(-1)!, null);
     log(`packet  claude-hook: ${n.drafts.length} hook events normalized → ${packets.at(-1)!.bundleDir.replace(outRoot + "/", "")}`);
+  }
+
+  // 3b. Colophon as the PEP inside Claude Code: raw PreToolUse events piped through
+  //     the real `hook` command one process per call (as Claude Code would), then `seal`.
+  {
+    const rec = records.get("claude-coder");
+    if (!rec) throw new Error("demo declarations must include claude-coder (Claude Code hook Record)");
+    const traceDir = join(outRoot, "claude-coder", "hook");
+    rmSync(traceDir, { recursive: true, force: true });
+    const events = readFileSync(join(FIXTURES, "claude-hook", "events.jsonl"), "utf8").split("\n").filter((l) => l.trim().length > 0);
+    const hookArgs = [resolve(import.meta.dir, "main.ts"), "hook", "--record", rec.path, "--trace-dir", traceDir, ...(pubkeyArg ? ["--pubkey", pubkeyArg] : [])];
+    const env: Record<string, string> = { ...(process.env as Record<string, string>), ...(signer.mode === "keyless" ? { COLOPHON_CERT_IDENTITY_REGEXP: signer.certIdentityRegexp, COLOPHON_OIDC_ISSUER: signer.oidcIssuer } : {}) };
+    let sessionId = "";
+    const tally = { allow: 0, deny: 0, ask: 0 };
+    for (const line of events) {
+      const r = spawnSync(process.execPath, hookArgs, { input: line, encoding: "utf8", env });
+      if (r.status !== 0) throw new Error(`hook exited ${r.status}: ${r.stderr}`);
+      const decision = (JSON.parse(r.stdout) as { hookSpecificOutput: { permissionDecision: "allow" | "deny" | "ask" } }).hookSpecificOutput.permissionDecision;
+      tally[decision]++;
+      sessionId = (JSON.parse(line) as { session_id: string }).session_id;
+    }
+    const bound = bindRecord(rec.path, pubkeyArg || undefined, signer.mode === "keyless" ? signer : undefined);
+    const packet = sealSession({ sessionId, traceDir, recordPath: rec.path, pubkeyPath: pubkeyArg || undefined, outRoot, signer, name: "claude-coder" });
+    packets.push(packet);
+    emitFindings(packet, bound);
+    log(`packet  claude-coder: ${events.length} PreToolUse events through the hook (${tally.allow} allow, ${tally.deny} deny, ${tally.ask} ask) → ${packet.bundleDir.replace(outRoot + "/", "")}`);
   }
 
   // 4. Foreign PEP: AWS fixture (interface + fixture reader only)

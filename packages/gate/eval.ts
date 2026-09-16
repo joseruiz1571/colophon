@@ -29,6 +29,11 @@ export function gatePolicyPath(): string {
   return process.env["COLOPHON_GATE_POLICY"] ?? GATE_POLICY;
 }
 
+/** The one effect TypeScript ever names: the fail-closed deny when the policy engine could not decide (D6). Shared by the gate and the hook. */
+export function failClosedDeny(message: string): Verdict {
+  return { effect: "deny", rule_ids: ["COL-GATE-OPA-ERROR"], reasons: [{ field: "policy", value: message.slice(0, 300) }] };
+}
+
 export function decide(record: ColophonRecord | null, call: Call, context: CallContext, policyPath: string = gatePolicyPath(), quiet = false): Verdict {
   try {
     const value = opaEval(policyPath, { record, call, context }, "data.colophon.gate.decision");
@@ -37,7 +42,7 @@ export function decide(record: ColophonRecord | null, call: Call, context: CallC
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     if (!quiet) process.stderr.write(`[gate] policy evaluation failed, denying: ${message.split("\n")[0]}\n`);
-    return { effect: "deny", rule_ids: ["COL-GATE-OPA-ERROR"], reasons: [{ field: "policy", value: message.slice(0, 300) }] };
+    return failClosedDeny(message);
   }
 }
 

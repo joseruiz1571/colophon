@@ -40,6 +40,8 @@ export type Declaration = {
   control_mappings: { control_id: string; framework: string }[];
   identity?: { a2a_card_uri?: string };
   pep?: PepBinding;
+  /** Labels a Colophon PEP applies when the caller states none; recorded on the Decision as context. */
+  defaults?: { data_class?: string };
 };
 
 export type ColophonRecord = {

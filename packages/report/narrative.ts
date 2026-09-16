@@ -38,6 +38,10 @@ export function buildNarrative(n: NarrativeInput): string {
   lines.push("");
   lines.push(`Source (policy enforcement point): \`${n.source}\`. ${n.record ? `Bound Record: \`${n.record.declaration.name}\` (sha256 \`${n.record.canonical_sha256}\`), owner ${n.record.declaration.owner}, risk tier ${n.record.declaration.risk_tier}, autonomy ${n.record.declaration.autonomy_level}.` : "No Record is bound: decisions come from a foreign PEP and are assessed as-is."}`);
   lines.push("");
+  if (n.source === "colophon-hook") {
+    lines.push("Colophon was the policy enforcement point here, running as a Claude Code PreToolUse hook: every tool call was decided by `gate.rego` through OPA before Claude Code ran it, and the hook rewrote no tool input. Tool names are the declared projections of Claude Code's (`Write` → `fs.write`, paths relative to the session's working directory); each decision carries the Claude tool name and a hash of the full input as context. An `ask` records that the human was asked, not what the human chose.");
+    lines.push("");
+  }
   if (n.source === "agentcore-dogwood" || n.record?.declaration.pep) {
     const pep = n.record?.declaration.pep;
     lines.push("## Declared rules of engagement (foreign PEP)");

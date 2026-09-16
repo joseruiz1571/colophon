@@ -72,6 +72,14 @@
         "a2a_card_uri": { "type": "string", "format": "uri", "description": "Optional citation of an A2A Agent Card. Identity only; never a permission source." }
       }
     },
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Labels a Colophon PEP applies when the caller states none. The Decision records that the label came from here, so the packet never presents an operator default as the agent's own statement.",
+      "properties": {
+        "data_class": { "type": "string", "minLength": 1, "description": "Applied to a call that carries no data_class (Claude Code tools never label). Must be one of the top-level data_classes." }
+      }
+    },
     "pep": {
       "type": "object",
       "additionalProperties": false,
