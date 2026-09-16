@@ -91,7 +91,7 @@ The first command needs only cosign. The second walks manifest → signature →
 
 Proves: which Declaration was in force (signed, bound on every call); what each call was projected to and how it was decided, in order, unedited since; that refusals cite the rule and the Record field; that the self-test denied an undeclared tool and a broken policy engine on this machine at session start.
 
-Does not prove: what the human chose when asked (the hook sees the question, not the answer; a PostToolUse hook would); that the Declaration was the right policy; the content of files (`data_class` is the operator's label from `defaults`, recorded as such); that a call bypassed hooks entirely (a disabled hook records nothing, which the packet cannot show). Custody is provable. Judgment is not.
+Does not prove: what a shell command did (the gate cannot parse shell, so `shell.exec` is bounded only by `requires_approval`; a Bash `printf > /tmp/x` is an `ask`, not a sandbox check, and the first live session showed exactly that); what the human chose when asked (the hook sees the question, not the answer; a PostToolUse hook would); that the Declaration was the right policy; the content of files (`data_class` is the operator's label from `defaults`, recorded as such); that a call bypassed hooks entirely (a disabled hook records nothing, which the packet cannot show). Custody is provable. Judgment is not.
 
 ## Fail closed
 

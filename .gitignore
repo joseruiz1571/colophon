@@ -10,3 +10,6 @@ out/
 *.key
 cosign.key
 cosign.pub
+
+# Local Claude Code settings (machine paths, hook install)
+.claude/settings.local.json
