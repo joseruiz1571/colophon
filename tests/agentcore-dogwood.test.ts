@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { normalizeAgentcoreDogwood, SOURCE } from "../packages/adapters/agentcore-dogwood/index.ts";
+import { normalizeAgentcoreDogwood, parseAwsStyleMap, SOURCE } from "../packages/adapters/agentcore-dogwood/index.ts";
 
 const FIX = resolve(import.meta.dir, "../packages/fixtures/agentcore-dogwood");
 
@@ -120,5 +120,75 @@ describe("agentcore-dogwood adapter", () => {
     const d = normalizeAgentcoreDogwood(p).drafts[0]!;
     expect(String(d.args_redacted!["token"])).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(JSON.stringify(d)).not.toContain("not-a-real-secret");
+  });
+
+  test("parses AWS Java-style requestBody maps", () => {
+    expect(parseAwsStyleMap("{id=1, jsonrpc=2.0, method=tools/call, params={name=StatusTarget___get_status, arguments={}}}")).toEqual({
+      id: "1",
+      jsonrpc: "2.0",
+      method: "tools/call",
+      params: { name: "StatusTarget___get_status", arguments: {} },
+    });
+    expect(parseAwsStyleMap("{id=2, jsonrpc=2.0, method=tools/call, params={name=StatusTarget___do_sensitive, arguments={action=exfil}}}")).toEqual({
+      id: "2",
+      jsonrpc: "2.0",
+      method: "tools/call",
+      params: { name: "StatusTarget___do_sensitive", arguments: { action: "exfil" } },
+    });
+  });
+
+  test("live APPLICATION_LOGS RoE: five decisions joined on request_id; session_id from sidecar", () => {
+    const n = normalizeAgentcoreDogwood(join(FIX, "live-roe-7461903f.jsonl"));
+    expect(n.sessionId).toBe("7461903f-e0c0-41ce-844b-87d43dcb1a23");
+    expect(n.drafts).toHaveLength(5);
+    expect(n.drafts.every((d) => d.session_id === "7461903f-e0c0-41ce-844b-87d43dcb1a23")).toBe(true);
+    expect(n.drafts.map((d) => `${d.effect}:${d.rule_ids[0]}:${d.tool}`)).toEqual([
+      "allow:permit_get_status_scoped-zn8oczkgdi:StatusTarget___get_status",
+      "deny:AGENTCORE-DEFAULT-DENY:StatusTarget___do_sensitive",
+      "allow:permit_approve_action_scoped-jmopu2crfw:StatusTarget___approve_action",
+      "allow:permit_sensitive_after_approval-uvlil0uj9e:StatusTarget___do_sensitive",
+      "deny:AGENTCORE-DEFAULT-DENY:StatusTarget___do_sensitive",
+    ]);
+    expect(n.drafts[0]!.args_redacted).toEqual({});
+    expect(n.drafts[1]!.args_redacted).toEqual({ action: "exfil" });
+    expect(n.drafts[2]!.args_redacted).toEqual({ action: "exfil" });
+    expect(n.drafts[3]!.args_redacted).toEqual({ action: "exfil" });
+    expect(n.drafts[4]!.args_redacted).toEqual({ action: "other" });
+    expect(n.drafts[1]!.reasons.some((r) => r.field.endsWith("principal.entityId") && String(r.value).includes("jose-admin"))).toBe(true);
+    expect(n.drafts[1]!.reasons.some((r) => r.field.endsWith("request_id") && r.value === "c3b0b8bc-fb65-41d4-9a2b-a033ad29fdaf")).toBe(true);
+    expect(n.drafts[1]!.reasons.some((r) => r.field.endsWith("temporal_evaluation_invoked") && r.value === true)).toBe(true);
+    expect(n.drafts[1]!.reasons.some((r) => /denied by default/.test(String(r.value)))).toBe(true);
+    expect(n.task).toMatch(/APPLICATION_LOGS/);
+    expect(n.task).toMatch(/Session id is capture metadata/);
+    expect(n.evidence.some((e) => e.kind === "agentcore-pep-binding")).toBe(true);
+    expect(n.evidence.some((e) => e.kind === "agentcore-capture-metadata")).toBe(true);
+    expect(JSON.stringify(n)).not.toMatch(/arn:aws:iam::\d{12}:/);
+  });
+
+  test("APPLICATION_LOGS requires session_id from sidecar or --session", () => {
+    const dir = mkdtempSync(join(tmpdir(), "colophon-ac-live-"));
+    const p = join(dir, "orphan.jsonl");
+    writeFileSync(
+      p,
+      JSON.stringify({
+        ts: 1789522888532,
+        request_id: "req-orphan",
+        log: "Policy evaluation denied request",
+        policy: { decision: "DENY", determiningPolicies: [], reason: "No policy applies to the request (denied by default)." },
+      }) + "\n",
+    );
+    expect(() => normalizeAgentcoreDogwood(p)).toThrow(/session_id/);
+    const n = normalizeAgentcoreDogwood(p, { sessionId: "from-cli-flag" });
+    expect(n.sessionId).toBe("from-cli-flag");
+    expect(n.drafts).toHaveLength(1);
+    expect(n.drafts[0]!.tool).toBe("unknown-tool");
+    expect(n.drafts[0]!.rule_ids).toEqual(["AGENTCORE-DEFAULT-DENY"]);
+  });
+
+  test("--session overrides sidecar; Executing-tool lines are not decisions", () => {
+    const n = normalizeAgentcoreDogwood(join(FIX, "live-roe-7461903f.jsonl"), { sessionId: "cli-override" });
+    expect(n.sessionId).toBe("cli-override");
+    expect(n.drafts).toHaveLength(5);
+    expect(n.drafts.every((d) => d.session_id === "cli-override")).toBe(true);
   });
 });

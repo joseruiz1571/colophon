@@ -17,7 +17,7 @@ Two headlines the sealed packet is meant to make unmistakable:
 
 Also relevant, named without expanding scope: vendor attestations; audit sampling of agentic tool use. Colophon is a small GRC evidence pipeline, not a rival monitoring dashboard.
 
-On AWS, Bedrock AgentCore Gateway + Dogwood is the Policy Enforcement Point. Colophon does not reimplement Dogwood in Rego. It normalizes foreign PEP allow/deny decisions into DecisionDrafts and seals them. CloudTrail/IAM evidence stays in `packages/adapters/aws-config` — a different PEP. This repository does **not** wire live CloudWatch or EventBridge ingest (Phase 4 is deferred; AWS live wiring is the gate for a wider share, not claimed here).
+On AWS, Bedrock AgentCore Gateway + Dogwood is the Policy Enforcement Point. Colophon does not reimplement Dogwood in Rego. It normalizes foreign PEP allow/deny decisions into DecisionDrafts and seals them. CloudTrail/IAM evidence stays in `packages/adapters/aws-config` — a different PEP. Captured Gateway **APPLICATION_LOGS** JSONL is an ingest path (session id from sidecar metadata). This repository does **not** ship a CloudWatch or EventBridge collector (no AWS SDK).
 
 ## Two commands
 
@@ -26,22 +26,32 @@ bun install && bun run demo
 bun run colophon bundle verify out/demo/evidence-reader/bundle --pubkey out/demo/keys/cosign.pub
 ```
 
-The demo needs `bun`, `opa`, `cosign` (3.x), and `jq` on the path. It runs offline after install: two declared agents are gated through the MCP gate, three foreign PEP fixtures (a Claude Code hook log, a CloudTrail export, an AgentCore/Dogwood RoE replay) are normalized, and five packets are signed with a throwaway local key pair and verified. Alongside each packet it writes GRC Eng Club Finding JSON (same decisions, club-readable). It exits 1 if signing fails. It prints `SIGNATURE: <path>` only after `bundle verify` passed.
+The demo needs `bun`, `opa`, `cosign` (3.x), and `jq` on the path. It runs offline after install: two declared agents are gated through the MCP gate, four foreign PEP fixtures (a Claude Code hook log, a CloudTrail export, an AgentCore/Dogwood AuthorizeAction RoE replay, and a live AgentCore Gateway APPLICATION_LOGS capture) are normalized, and six packets are signed with a throwaway local key pair and verified. Alongside each packet it writes GRC Eng Club Finding JSON (same decisions, club-readable). It exits 1 if signing fails. It prints `SIGNATURE: <path>` only after `bundle verify` passed.
 
-AJ / community AgentCore demo (fixture → sealed packet → verify):
+AJ / community AgentCore demo (fixture → sealed packet → verify), including the live APPLICATION_LOGS RoE capture:
 
 ```
 bun run demo
 bun packages/cli/main.ts bundle verify out/demo/agentcore-dogwood/bundle --pubkey out/demo/keys/cosign.pub
-bun packages/cli/main.ts export finding validate out/demo/agentcore-dogwood/findings/*.finding.json
+bun packages/cli/main.ts bundle verify out/demo/agentcore-dogwood-live/bundle --pubkey out/demo/keys/cosign.pub
+bun packages/cli/main.ts export finding validate out/demo/agentcore-dogwood-live/findings/*.finding.json
 ```
 
-Trace-only ingest (same `normalize` pattern as `claude-hook`):
+Trace-only ingest (same `normalize` pattern as `claude-hook`). AuthorizeAction replay:
 
 ```
 bun packages/cli/main.ts normalize agentcore-dogwood \
   packages/fixtures/agentcore-dogwood/session.jsonl --out out/probe/ac
 bun packages/cli/main.ts trace verify out/probe/ac/trace/*.jsonl
+```
+
+APPLICATION_LOGS capture (session id from sidecar `<stem>.meta.json`, not the log body):
+
+```
+bun packages/cli/main.ts normalize agentcore-dogwood \
+  packages/fixtures/agentcore-dogwood/live-roe-7461903f.jsonl --out out/probe/ac-live
+bun packages/cli/main.ts trace verify out/probe/ac-live/trace/*.jsonl
+# equivalent: --meta live-roe-7461903f.meta.json or --session <id>
 ```
 
 A stranger with `cosign` alone:
@@ -107,11 +117,11 @@ Finding export (`colophon export finding`) is **interop** with [GRC Eng Club](ht
 | `colophon-gate` | live in the demo: MCP stdio PEP, verdicts only from `packages/policy/gate.rego` via OPA |
 | `claude-hook` | fixture: PreToolUse hook events → Decisions → same catalog, signed packet |
 | `aws-config` | interface + fixture reader only (CloudTrail LookupEvents, GetRolePolicy, GetBucketEncryption). Infrastructure PEP. No SDK, no live client. |
-| `agentcore-dogwood` | fixture: AgentCore/Dogwood AuthorizeAction events → Decisions → same catalog, signed RoE packet. No SDK, no live CloudWatch/EventBridge. |
+| `agentcore-dogwood` | AuthorizeAction fixture replay **and** captured APPLICATION_LOGS JSONL (session id from sidecar/`--session`). No SDK, no CloudWatch client. |
 
 ## Status
 
-Every claim, its probe, and whether the probe ran from a fresh clone: [`SPEC.md`](SPEC.md) defines them, [`STATUS.md`](STATUS.md) reports them, [`DECISIONS.md`](DECISIONS.md) records the choices made here. Nothing in this repository claims a live AWS collector, live AgentCore ingest, an OWASP contribution, in-toto co-authorship, or any certification.
+Every claim, its probe, and whether the probe ran from a fresh clone: [`SPEC.md`](SPEC.md) defines them, [`STATUS.md`](STATUS.md) reports them, [`DECISIONS.md`](DECISIONS.md) records the choices made here. Nothing in this repository claims a live CloudWatch/EventBridge collector, an OWASP contribution, in-toto co-authorship, or any certification.
 
 ## License
 

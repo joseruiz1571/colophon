@@ -1,0 +1,29 @@
+{
+  "name": "colophon-roe",
+  "description": "MCP tool schema cited by the colophon-roe Record. StatusTarget on Lambda colophon-roe-tools. Names are Colophon-stable projections of StatusTarget___* as recorded in APPLICATION_LOGS.",
+  "tools": [
+    {
+      "name": "get_status",
+      "description": "Read engagement status. Cedar permit_get_status_scoped.",
+      "inputSchema": { "type": "object", "properties": {}, "additionalProperties": false }
+    },
+    {
+      "name": "approve_action",
+      "description": "Record a human approval consumed by the Dogwood temporal permit_sensitive_after_approval policy.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "action": { "type": "string" } },
+        "required": ["action"]
+      }
+    },
+    {
+      "name": "do_sensitive",
+      "description": "Sensitive action. Denied by default unless a prior approve_action in this policy session matches the same action argument.",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "action": { "type": "string" } },
+        "required": ["action"]
+      }
+    }
+  ]
+}

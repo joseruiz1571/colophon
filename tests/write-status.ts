@@ -20,8 +20,9 @@ const NOTES: Record<string, string> = {
   S37: "CI ran green on the first push: https://github.com/joseruiz1571/colophon/actions/runs/34505148818 (2026-09-10). The keyless demo signed four bundles against the public Sigstore instance and `bundle verify` passed with the pinned certificate identity and issuer; the fresh-clone probe suite reported 40/40 inside CI.",
   S32: "Fixture-only by design: interface + fixture reader, no SDK, no live client. A live provider is out of scope and is not claimed.",
   S31: "Foreign PEP: three of eight assess-phase controls are not-satisfied because no Record is bound; this is the honest shape of \"their gate, your packet\".",
-  S38: "Fixture-only AgentCore Gateway + Dogwood replay. Colophon does not reimplement Dogwood. Phase 4 live CloudWatch/EventBridge ingest is deferred and is not claimed. aws-config remains a separate CloudTrail/IAM adapter.",
+  S38: "AuthorizeAction fixture replay. Colophon does not reimplement Dogwood. APPLICATION_LOGS capture ingest is S40. No CloudWatch/EventBridge SDK client. aws-config remains a separate CloudTrail/IAM adapter.",
   S39: "Finding export is club interop on the Decision stream, not a CloudTrail collector. SCF control IDs are not emitted. Dual-emit of CloudTrail is deferred.",
+  S40: "Phase 4 is captured APPLICATION_LOGS JSONL ingest, not a live CloudWatch collector. Session id is sidecar/CLI metadata — AgentCore Gateway logs do not carry it. ENFORCE + AWS_IAM named principal. No AWS SDK.",
 };
 const short = (s: string) => (s.length > 150 ? s.slice(0, 147) + "…" : s);
 const rows = probes.results.map((r) => {
@@ -37,9 +38,9 @@ Probe run: \`bun tests/probes.ts\` at HEAD \`${probes.head}\`, ${probes.ran_at},
 
 A row is \`done\` only if its probe passed in that run. \`partial\` means the probe passed but the claim's full meaning was not exercised, with the reason stated. \`not-started\` means the probe failed or did not run.
 
-**${done} done · ${partial} partial · ${rows.length - done - partial} not-started** of ${rows.length} claims (S1–S39, A1–A3).
+**${done} done · ${partial} partial · ${rows.length - done - partial} not-started** of ${rows.length} claims (S1–S40, A1–A3).
 
-Not claimed anywhere in this repository: a live AWS collector, an OWASP contribution, in-toto co-authorship, any certification.
+Not claimed anywhere in this repository: a live CloudWatch/EventBridge collector, an OWASP contribution, in-toto co-authorship, any certification.
 
 | # | claim | status | probe run | note |
 |---|---|---|---|---|

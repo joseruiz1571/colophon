@@ -1,0 +1,20 @@
+{
+  "session_id": "7461903f-e0c0-41ce-844b-87d43dcb1a23",
+  "region": "us-east-1",
+  "account_last4": "4972",
+  "gateway_id": "colophon-roe-gateway-dwg0z4emza",
+  "gateway_url": "https://colophon-roe-gateway-dwg0z4emza.gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp",
+  "policy_engine": "colophon_roe_engine-9m92e08rix",
+  "mode": "ENFORCE",
+  "auth": "AWS_IAM",
+  "window_ms": [1789522883000, 1789522894000],
+  "policies_active": [
+    { "id": "permit_get_status_scoped-zn8oczkgdi", "kind": "Cedar" },
+    { "id": "permit_approve_action_scoped-jmopu2crfw", "kind": "Cedar" },
+    { "id": "permit_sensitive_after_approval-uvlil0uj9e", "kind": "Dogwood temporal" }
+  ],
+  "target": "StatusTarget",
+  "lambda": "colophon-roe-tools",
+  "log_group": "APPLICATION_LOGS",
+  "note": "Capture metadata for AgentCore Gateway APPLICATION_LOGS. Session id is not in the log body; Colophon requires it from this sidecar or --session."
+}
