@@ -4,7 +4,7 @@ Probe run: `bun tests/probes.ts` at HEAD `f425682`, 2026-09-14T13:41:26.765Z, fr
 
 A row is `done` only if its probe passed in that run. `partial` means the probe passed but the claim's full meaning was not exercised, with the reason stated. `not-started` means the probe failed or did not run.
 
-**42 done · 0 partial · 0 not-started** of 42 claims (S1–S39, A1–A3).
+**42 done · 0 partial · 1 not-started** of 43 claims (S1–S40, A1–A3).
 
 Not claimed anywhere in this repository: a live AWS collector, an OWASP contribution, in-toto co-authorship, any certification.
 
@@ -44,6 +44,7 @@ Not claimed anywhere in this repository: a live AWS collector, an OWASP contribu
 | S32 | The aws-config adapter is an interface plus a fixture reader shaped like CloudTrail `LookupEvents`, IAM `GetRolePolicy`, and S3 `GetBucketEncryptio… | done | `bun tests/probes.ts` S32 at f425682, 0.1s | Fixture-only by design: interface + fixture reader, no SDK, no live client. A live provider is out of scope and is not claimed. |
 | S38 | The agentcore-dogwood adapter normalizes fixture AgentCore/Dogwood AuthorizeAction events (approve-before-act, out-of-scope, rate-limit, simple all… | done | `bun tests/probes.ts` S38 at f425682, 0.6s | Fixture-only AgentCore Gateway + Dogwood replay. Colophon does not reimplement Dogwood. Phase 4 live CloudWatch/EventBridge ingest is deferred and is not claimed. aws-config remains a separate CloudTrail/IAM adapter. |
 | S39 | `colophon export finding` maps sealed Decisions to GRC Eng Club `finding.schema.json` v1 (resource `ai_agent_session`, Colophon COL-* evaluations, … | done | `bun tests/probes.ts` S39 at f425682, 0.5s | Finding export is club interop on the Decision stream, not a CloudTrail collector. SCF control IDs are not emitted. Dual-emit of CloudTrail is deferred. |
+| S40 | The agentcore-dogwood adapter ingests captured AgentCore Gateway APPLICATION_LOGS JSONL (session id from sidecar; request_id join; ENFORCE RoE). | not-started | pending Phase 4 probe | |
 | S33 | README states the one-sentence product, the design rule, a proves / does-not-prove table, exactly the two commands, and points at STATUS.md. | done | `bun tests/probes.ts` S33 at f425682, 0.0s |  |
 | S34 | STATUS.md has one row per claim S1–S39 and A1–A3; every `done` row names the probe run and the session date. | done | `bun tests/probes.ts` S34 at f425682, 0.0s |  |
 | S35 | DECISIONS.md records only decisions made in this repo, each with a rationale; it contains no operator brief. | done | `bun tests/probes.ts` S35 at f425682, 0.0s |  |

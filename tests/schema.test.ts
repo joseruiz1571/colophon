@@ -7,7 +7,7 @@ const FIX = resolve(import.meta.dir, "../packages/fixtures");
 
 describe("declaration schema", () => {
   test("shipped declarations validate", () => {
-    for (const f of ["evidence-reader.yaml", "notifier.yaml", "red-team-coder.yaml"]) expect(() => loadDeclaration(join(FIX, "declarations", f))).not.toThrow();
+    for (const f of ["evidence-reader.yaml", "notifier.yaml", "red-team-coder.yaml", "colophon-roe.yaml"]) expect(() => loadDeclaration(join(FIX, "declarations", f))).not.toThrow();
   });
   test("missing owner is named", () => {
     expect(() => loadDeclaration(join(FIX, "declarations", "bad", "missing-owner.yaml"))).toThrow(/owner/);

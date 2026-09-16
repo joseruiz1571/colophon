@@ -84,7 +84,7 @@ jobs:
           for d in out/demo out/keyless; do
             n=$(ls "$d"/*/bundle/manifest.sigstore.json | wc -l)
             echo "$d: $n signature bundles"
-            test "$n" -ge 5
+            test "$n" -ge 6
           done
           jq -e '.mediaType | startswith("application/vnd.dev.sigstore.bundle")' out/keyless/evidence-reader/bundle/manifest.sigstore.json
 

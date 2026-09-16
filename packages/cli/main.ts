@@ -74,6 +74,7 @@ const USAGE = `colophon — signed session packets for AI agent tool use
   agent run --scenario <yaml> --record <r> --pubkey <pub> --out <dir> [--list-tools]
   trace verify <file>
   normalize <claude-hook|aws-config|agentcore-dogwood> <path> --out <dir>
+           [--session <id>] [--meta <sidecar.json>]
   report --trace <file> --record <r> --out <dir>
   report validate <assessment-results.json>
   export finding --trace <file> --out <dir> [--record <r>] [--source <pep>] [--session <id>]
@@ -235,7 +236,10 @@ async function main(argv: string[]): Promise<number> {
       return 0;
     }
     if (adapter === "agentcore-dogwood") {
-      const n = normalizeAgentcoreDogwood(src);
+      const n = normalizeAgentcoreDogwood(src, {
+        sessionId: str(flags, "session", false) || undefined,
+        metaPath: str(flags, "meta", false) || undefined,
+      });
       const tracePath = join(dir, "trace", `${n.sessionId}.jsonl`);
       rmSync(tracePath, { force: true });
       const w = new TraceWriter(tracePath);
@@ -243,7 +247,7 @@ async function main(argv: string[]): Promise<number> {
       w.seal();
       mkdirSync(join(dir, "evidence-raw"), { recursive: true });
       for (const [i, e] of n.evidence.entries()) await Bun.write(join(dir, "evidence-raw", `${i}-${e.kind}.json`), JSON.stringify(e.payload, null, 2) + "\n");
-      out(`${tracePath}: ${n.drafts.length} decisions, ${n.evidence.length} evidence items from ${src} (source agentcore-dogwood, fixture only)`);
+      out(`${tracePath}: ${n.drafts.length} decisions, ${n.evidence.length} evidence items from ${src} (source agentcore-dogwood, offline; no AWS SDK)`);
       return 0;
     }
     fail(`unknown adapter ${adapter}`);

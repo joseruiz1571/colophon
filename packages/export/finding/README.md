@@ -60,7 +60,7 @@ bun packages/cli/main.ts export finding validate <file>
 
 ## Demo
 
-`bun run demo` still seals five packets. It also writes club-valid Finding JSON next to each packet, including AgentCore/Dogwood: same decisions → receipt + club-readable findings.
+`bun run demo` seals six packets. It also writes club-valid Finding JSON next to each packet, including both AgentCore/Dogwood packets (AuthorizeAction replay and live APPLICATION_LOGS): same decisions → receipt + club-readable findings.
 
 ```
 bun run demo

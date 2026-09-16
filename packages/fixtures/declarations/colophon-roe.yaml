@@ -1,0 +1,41 @@
+# colophon-roe: live ENFORCE RoE on AgentCore Gateway + Dogwood.
+# High risk. The PEP is AgentCore Gateway + Dogwood (foreign); this Record
+# names the declared tools, Gateway, engine, and ENFORCE mode. It does not
+# reimplement Cedar/Dogwood. Bound in the agentcore-dogwood-live demo packet.
+# Session id for the live capture lives in the APPLICATION_LOGS sidecar, not here.
+id: c4e8a1b2-7d3f-4a91-8b2c-9e5f6a7b8c0d
+name: colophon-roe
+owner: jose-admin@acme.example
+risk_tier: high
+autonomy_level: L3
+tools:
+  - name: get_status
+    data_access: none
+    data_classes: []
+  - name: approve_action
+    data_access: none
+    data_classes: []
+  - name: do_sensitive
+    data_access: none
+    data_classes: []
+data_classes: [public, internal]
+sandbox:
+  write_paths: ["out/colophon-roe/"]
+max_scopes: []
+kill_switch:
+  available: true
+  mechanism: "detach the AgentCore Gateway policy engine (ENFORCE) and revoke the jose-admin workload identity"
+review_due: "2027-03-31"
+control_mappings:
+  - { control_id: "LLM06", framework: OWASP-LLM-TOP10 }
+  - { control_id: "GOVERN-1.1", framework: NIST-AI-RMF }
+  - { control_id: "AC-6", framework: NIST-800-53 }
+pep:
+  kind: agentcore-dogwood
+  enforcement_mode: ENFORCE
+  tool_schema_ref: "packages/fixtures/agentcore-dogwood/live-roe-tools.json"
+  policy_set_id: colophon-roe
+  policy_engine_id: colophon_roe_engine-9m92e08rix
+  gateway_id: colophon-roe-gateway-dwg0z4emza
+identity:
+  a2a_card_uri: "https://agents.acme.example/.well-known/colophon-roe.json"

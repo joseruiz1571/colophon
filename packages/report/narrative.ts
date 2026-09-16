@@ -21,7 +21,7 @@ export type NarrativeInput = {
 
 function primaryArg(d: Decision): string {
   const a = d.args_redacted ?? {};
-  for (const k of ["path", "to", "url", "repo", "scopes", "org", "file_path", "command", "bucketName", "roleName"]) {
+  for (const k of ["path", "to", "url", "repo", "scopes", "org", "file_path", "command", "action", "bucketName", "roleName"]) {
     if (a[k] !== undefined) return `${k}=${JSON.stringify(a[k])}`;
   }
   return "";
@@ -55,7 +55,7 @@ export function buildNarrative(n: NarrativeInput): string {
     } else {
       lines.push("- No Record `pep` binding was present; decisions are assessed as a foreign PEP replay.");
     }
-    lines.push("- Live CloudWatch/EventBridge ingest is not claimed (Phase 4 deferred). `aws-config` (CloudTrail/IAM) is a separate infrastructure-PEP adapter.");
+    lines.push("- Colophon does not call CloudWatch or EventBridge. Captured APPLICATION_LOGS JSONL is an ingest path; session id comes from sidecar/CLI metadata, not the log body. `aws-config` (CloudTrail/IAM) is a separate infrastructure-PEP adapter.");
     lines.push("");
   }
   lines.push("## What was asked");

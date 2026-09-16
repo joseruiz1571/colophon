@@ -1,6 +1,6 @@
 /**
  * bun run demo: declarations → signed records → two gated sessions through
- * the MCP gate → three foreign-adapter sessions → five signed, verified packets
+ * the MCP gate → four foreign-adapter sessions → six signed, verified packets
  * plus GRC Eng Club Finding JSON beside each packet. Exits 1 on the first
  * failure. Prints SIGNATURE: only after verify passed.
  */
@@ -144,6 +144,23 @@ export async function runDemo(o: DemoOptions): Promise<PacketOutput[]> {
     packets.push(buildPacket({ name: "agentcore-dogwood", source: "agentcore-dogwood", sessionId: n.sessionId, task: n.task, outRoot, tracePath, record: { path: rec.path, sigPath: rec.sigPath, record: bound }, extraEvidence: n.evidence, signer }));
     emitFindings(packets.at(-1)!, bound);
     log(`packet  agentcore-dogwood: ${drafts.length} AgentCore/Dogwood decisions normalized (fixture only) → ${packets.at(-1)!.bundleDir.replace(outRoot + "/", "")}`);
+  }
+
+  // 6. Foreign PEP: live AgentCore Gateway APPLICATION_LOGS capture (offline; session id from sidecar)
+  {
+    const rec = records.get("colophon-roe");
+    if (!rec) throw new Error("demo declarations must include colophon-roe (live APPLICATION_LOGS RoE Record)");
+    const n = normalizeAgentcoreDogwood(join(FIXTURES, "agentcore-dogwood", "live-roe-7461903f.jsonl"));
+    const bound = bindRecord(rec.path, pubkeyArg || undefined, signer.mode === "keyless" ? signer : undefined);
+    const drafts = n.drafts.map((d) => ({ ...d, record_sha256: bound.canonical_sha256 }));
+    const tracePath = join(outRoot, "agentcore-dogwood-live", "trace", `${n.sessionId}.jsonl`);
+    rmSync(tracePath, { force: true });
+    const w = new TraceWriter(tracePath);
+    for (const d of drafts) w.append(d);
+    w.seal();
+    packets.push(buildPacket({ name: "agentcore-dogwood-live", source: "agentcore-dogwood", sessionId: n.sessionId, task: n.task, outRoot, tracePath, record: { path: rec.path, sigPath: rec.sigPath, record: bound }, extraEvidence: n.evidence, signer }));
+    emitFindings(packets.at(-1)!, bound);
+    log(`packet  agentcore-dogwood-live: ${drafts.length} APPLICATION_LOGS evaluations normalized (session ${n.sessionId}, sidecar metadata; no AWS SDK) → ${packets.at(-1)!.bundleDir.replace(outRoot + "/", "")}`);
   }
 
   // 6. Summary

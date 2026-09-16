@@ -145,6 +145,21 @@ describe("finding export", () => {
     expect(readdirSync(out).some((n) => n.endsWith(".finding.json"))).toBe(true);
   });
 
+  test("live APPLICATION_LOGS session exports a Finding keyed by sidecar session_id", () => {
+    const dir = mkdtempSync(join(tmpdir(), "colophon-find-live-"));
+    const n = normalizeAgentcoreDogwood(join(FIX, "agentcore-dogwood", "live-roe-7461903f.jsonl"));
+    const tracePath = join(dir, "trace", `${n.sessionId}.jsonl`);
+    const w = new TraceWriter(tracePath);
+    for (const d of n.drafts) w.append(d);
+    w.seal();
+    const docs = findingsFromDir({ from: dir });
+    expect(docs).toHaveLength(1);
+    expect(validateFinding(docs[0]!).ok).toBe(true);
+    expect(docs[0]!.resource.id).toBe("7461903f-e0c0-41ce-844b-87d43dcb1a23");
+    expect(docs[0]!.evaluations.filter((e) => e.status === "fail").length).toBe(2);
+    expect(docs[0]!.evaluations.filter((e) => e.status === "pass").length).toBeGreaterThanOrEqual(3);
+  });
+
   test("refuses an unsealed trace", () => {
     const dir = mkdtempSync(join(tmpdir(), "colophon-find-unsealed-"));
     const n = normalizeAgentcoreDogwood(join(FIX, "agentcore-dogwood", "session.jsonl"));
