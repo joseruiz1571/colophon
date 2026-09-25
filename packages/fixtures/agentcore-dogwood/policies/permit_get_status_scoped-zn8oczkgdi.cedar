@@ -1,0 +1,1 @@
+permit(principal == AgentCore::IamEntity::"arn:aws:iam::****:user/roe-operator", action == AgentCore::Action::"StatusTarget___get_status", resource == AgentCore::Gateway::"arn:aws:bedrock-agentcore:us-east-1:****:gateway/colophon-roe-gateway-dwg0z4emza");

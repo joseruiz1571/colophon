@@ -94,7 +94,24 @@
         "policy_set_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "SHA-256 of the Dogwood/Cedar policy set bytes the Gateway evaluated." },
         "policy_engine_id": { "type": "string", "minLength": 1 },
         "gateway_id": { "type": "string", "minLength": 1, "description": "AgentCore Gateway id or ARN, if known." },
-        "tool_name_prefix": { "type": "string", "minLength": 1, "description": "Prefix the foreign PEP puts on tool names as recorded (AgentCore Gateway: `<TargetName>___`). COL-05 strips it before re-evaluating an executed call against the declared tools. A naming map, not a policy." }
+        "tool_name_prefix": { "type": "string", "minLength": 1, "description": "Prefix the foreign PEP puts on tool names as recorded (AgentCore Gateway: `<TargetName>___`). COL-05 strips it before re-evaluating an executed call against the declared tools. A naming map, not a policy." },
+        "policies": {
+          "type": "array",
+          "description": "The policies the foreign PEP evaluated, each with the SHA-256 of its statement file. The packet stages every named file under policy/<id>.cedar, bundle verify asserts each hash, and COL-11 requires every allow decision's rule ids to be declared here. Statement files may be redacted copies of the PEP's policy text (account ids masked, principals generalized); the hash is over the staged bytes and the narrative says so.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "kind", "path", "sha256"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1, "description": "The PEP's policy id (AgentCore policyId): the value determiningPolicies cites, so the value Decision.rule_ids carries." },
+              "name": { "type": "string", "minLength": 1 },
+              "kind": { "type": "string", "enum": ["cedar", "dogwood-temporal"] },
+              "path": { "type": "string", "minLength": 1, "description": "Repo-relative path to the statement file." },
+              "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "SHA-256 of the statement file bytes." },
+              "updated_at": { "type": "string", "format": "date-time" }
+            }
+          }
+        }
       }
     }
   }

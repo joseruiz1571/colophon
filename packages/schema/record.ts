@@ -23,6 +23,20 @@ export type PepBinding = {
   gateway_id?: string;
   /** Prefix the PEP records on tool names (AgentCore Gateway: `<Target>___`); COL-05 strips it before re-evaluation. */
   tool_name_prefix?: string;
+  /** The policies the foreign PEP evaluated, each with the hash of its statement file. The packet stages every file under policy/ and bundle verify asserts each hash. */
+  policies?: PepPolicy[];
+};
+
+export type PepPolicy = {
+  /** The PEP's own policy id (AgentCore: policyId): what determiningPolicies cites, and therefore what Decision.rule_ids carries. */
+  id: string;
+  name?: string;
+  kind: "cedar" | "dogwood-temporal";
+  /** Repo-relative path to the statement file that is staged into the packet as policy/<id>.cedar. */
+  path: string;
+  /** SHA-256 of that file's bytes. */
+  sha256: string;
+  updated_at?: string;
 };
 
 export type Declaration = {

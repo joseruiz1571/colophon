@@ -4,7 +4,9 @@
  * wrong the result is a deny with COL-GATE-OPA-ERROR: this is the one place
  * TypeScript names an effect, and it only ever names deny.
  */
+import { readFileSync } from "node:fs";
 import { GATE_POLICY, OpaError, opaEval } from "../policy/opa.ts";
+import { sha256Hex } from "../schema/canonical.ts";
 import type { ColophonRecord } from "../schema/record.ts";
 import type { Effect, Reason } from "../normalize/decision.ts";
 
@@ -27,6 +29,21 @@ function shapeOk(v: unknown): v is Verdict {
 
 export function gatePolicyPath(): string {
   return process.env["COLOPHON_GATE_POLICY"] ?? GATE_POLICY;
+}
+
+/**
+ * SHA-256 of the policy file's bytes, recorded on every Decision as
+ * policy_sha256 so the packet can stage the file and a verifier can check that
+ * the verdicts came from exactly that text. Undefined when the file cannot be
+ * read: that is the OPA-error path, whose deny already names the missing
+ * policy in its reasons, and a hash of nothing would be a claim about nothing.
+ */
+export function policySha256(policyPath: string = gatePolicyPath()): string | undefined {
+  try {
+    return sha256Hex(readFileSync(policyPath));
+  } catch {
+    return undefined;
+  }
 }
 
 /** The one effect TypeScript ever names: the fail-closed deny when the policy engine could not decide (D6). Shared by the gate and the hook. */

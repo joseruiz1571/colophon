@@ -17,7 +17,7 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { buildPacket, type PacketOutput, type Signer } from "../cli/packet.ts";
-import { decide, failClosedDeny, selfTest, type Verdict } from "../gate/eval.ts";
+import { decide, failClosedDeny, policySha256, selfTest, type Verdict } from "../gate/eval.ts";
 import { bindRecord, recordSignaturePath } from "../gate/server.ts";
 import { argsSha256, bindingReasons, redactArgs, type Effect, type Reason } from "../normalize/decision.ts";
 import { canonicalSha256 } from "../schema/canonical.ts";
@@ -185,6 +185,7 @@ export function runHook(raw: string, o: HookRunOptions): HookRunResult {
     const call = mapCall(event, record.declaration.defaults);
     const context = { session_id: sessionId, call_index: trace.length };
     const verdict = decide(record, { name: call.name, arguments: call.arguments }, context, o.policyPath, true);
+    const policyHash = policySha256(o.policyPath);
     trace.append({
       source: SOURCE,
       effect: verdict.effect,
@@ -196,6 +197,7 @@ export function runHook(raw: string, o: HookRunOptions): HookRunResult {
       session_id: sessionId,
       call_index: context.call_index,
       record_sha256: record.canonical_sha256,
+      ...(policyHash ? { policy_sha256: policyHash } : {}),
       ts: now().toISOString(),
     });
     return { output: toOutput(verdict), verdict, sessionId, tracePath, tool: call.name };

@@ -5,8 +5,9 @@
  * the caller decides the exit code. Prints SIGNATURE only after verify passed.
  */
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { basename, join, relative } from "node:path";
-import { assess, loadCatalog, type ControlResult } from "../catalog/checks.ts";
+import { basename, join, relative, resolve } from "node:path";
+import { assess, COLOPHON_PEP_SOURCES, loadCatalog, type ControlResult, type StagedPolicy } from "../catalog/checks.ts";
+import { gatePolicyPath } from "../gate/eval.ts";
 import { createBundle, hashFile, SIGNATURE } from "../bundle/manifest.ts";
 import { signBlobKeyless, signBlobWithKey } from "../bundle/sign.ts";
 import { verifyBundle } from "../bundle/verify.ts";
@@ -60,6 +61,56 @@ export function verifyCommandFor(signer: Signer, bundleDir: string): string {
     : `bun packages/cli/main.ts bundle verify ${b} --certificate-identity-regexp '${signer.certIdentityRegexp}' --oidc-issuer ${signer.oidcIssuer}`;
 }
 
+export class PolicyBindingError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PolicyBindingError";
+  }
+}
+
+/**
+ * Stage the policy text the verdicts came from under <stage>/policy/, so the
+ * manifest hashes it and a verifier can compare. Two bindings, one rule each:
+ *   - a Colophon PEP (gate, hook) stamps policy_sha256 on every Decision; the
+ *     staged gate.rego must hash to exactly that value, or nothing is staged
+ *     and the packet is refused (a packet must not carry a policy its verdicts
+ *     did not come from);
+ *   - a foreign PEP's Record declares pep.policies with the hash of each
+ *     statement file; every file must exist and hash as declared.
+ * Decisions without policy_sha256 (the OPA-error path, or an older trace)
+ * stage nothing and leave COL-11 to say so.
+ */
+export function stagePolicies(stage: string, source: string, decisions: Decision[], record: ColophonRecord | null): StagedPolicy[] {
+  const out: StagedPolicy[] = [];
+  const policyDir = join(stage, "policy");
+  if (COLOPHON_PEP_SOURCES.has(source)) {
+    const carried = [...new Set(decisions.map((d) => d.policy_sha256).filter((h): h is string => typeof h === "string"))];
+    if (carried.length > 0) {
+      const src = gatePolicyPath();
+      if (!existsSync(src)) throw new PolicyBindingError(`${carried.length === 1 ? "the decisions carry" : "decisions carry"} policy_sha256 but the gate policy ${portablePath(src)} is not readable; there is no policy text to stage`);
+      const h = hashFile(src).sha256;
+      if (carried.length > 1 || carried[0] !== h) {
+        throw new PolicyBindingError(`policy_sha256 mismatch: decisions carry ${carried.map((x) => x.slice(0, 12) + "…").join(", ")} but ${portablePath(src)} hashes to ${h.slice(0, 12)}…; refusing to stage a policy the verdicts did not come from`);
+      }
+      mkdirSync(policyDir, { recursive: true });
+      copyFileSync(src, join(policyDir, "gate.rego"));
+      out.push({ role: "gate", path: "policy/gate.rego", sha256: h });
+    }
+  }
+  for (const p of record?.declaration.pep?.policies ?? []) {
+    const src = resolve(process.cwd(), p.path);
+    const name = record!.declaration.name;
+    if (!existsSync(src)) throw new PolicyBindingError(`Record ${name} declares policy ${p.id} at ${p.path}, which does not exist`);
+    const h = hashFile(src).sha256;
+    if (h !== p.sha256) throw new PolicyBindingError(`Record ${name} declares policy ${p.id} with sha256 ${p.sha256.slice(0, 12)}… but ${p.path} hashes to ${h.slice(0, 12)}…`);
+    const file = `${p.id.replace(/[^A-Za-z0-9._-]/g, "_")}.cedar`;
+    mkdirSync(policyDir, { recursive: true });
+    copyFileSync(src, join(policyDir, file));
+    out.push({ role: "declared", id: p.id, kind: p.kind, path: `policy/${file}`, sha256: h });
+  }
+  return out;
+}
+
 /** Assess-only: evidence + AR + narrative into <out>/{evidence,report}. No bundle, no signature. */
 export function assessToDir(i: Omit<PacketInput, "signer" | "outRoot" | "name"> & { out: string; verifyCommand: string }): { results: ControlResult[]; decisions: Decision[] } {
   const stage = i.out;
@@ -81,9 +132,11 @@ export function assessToDir(i: Omit<PacketInput, "signer" | "outRoot" | "name"> 
 
   const traceCheck = verifyTrace(i.tracePath);
   const decisions = readTrace(i.tracePath);
+  const policies = stagePolicies(stage, i.source, decisions, i.record?.record ?? null);
   const store = new EvidenceStore();
-  const ids: { record?: string; trace: string; summary: string; selftest?: string; narrative?: string } = { trace: "", summary: "" };
+  const ids: { record?: string; trace: string; summary: string; selftest?: string; narrative?: string; policies?: string } = { trace: "", summary: "" };
   if (i.record) ids.record = store.put(i.source, "record", i.record.record).id;
+  if (policies.length > 0) ids.policies = store.put(i.source, "policies", { files: policies }).id;
   ids.trace = store.put(i.source, "trace", { path: `trace/${traceName}`, verification: traceCheck, decisions }).id;
   for (const d of decisions) store.put(i.source, "decision", d);
   if (i.selftestPath && existsSync(i.selftestPath)) ids.selftest = store.put(i.source, "gate-selftest", JSON.parse(readFileSync(i.selftestPath, "utf8"))).id;
@@ -93,11 +146,11 @@ export function assessToDir(i: Omit<PacketInput, "signer" | "outRoot" | "name"> 
   ids.summary = store.put(i.source, "session-summary", { source: i.source, session_id: i.sessionId, task: i.task, record_sha256: i.record?.record.canonical_sha256 ?? null, decisions: decisions.length, ...counts, deny_rule_ids: [...new Set(decisions.filter((d) => d.effect === "deny").flatMap((d) => d.rule_ids))].sort() }).id;
 
   const catalog = loadCatalog();
-  const baseCtx = { source: i.source, record: i.record?.record ?? null, decisions, trace: traceCheck, store, ids };
+  const baseCtx = { source: i.source, record: i.record?.record ?? null, decisions, trace: traceCheck, store, ids, policies };
   // Pass 1: assess with the limits text only, so the narrative can include the findings.
-  const limitsProbe = buildNarrative({ source: i.source, sessionId: i.sessionId, record: baseCtx.record, task: i.task, decisions, results: [], traceOk: traceCheck.ok, verifyCommand: i.verifyCommand });
+  const limitsProbe = buildNarrative({ source: i.source, sessionId: i.sessionId, record: baseCtx.record, task: i.task, decisions, results: [], traceOk: traceCheck.ok, verifyCommand: i.verifyCommand, policies });
   const pass1 = assess({ ...baseCtx, narrative: limitsProbe }, catalog);
-  const narrative = buildNarrative({ source: i.source, sessionId: i.sessionId, record: baseCtx.record, task: i.task, decisions, results: pass1, traceOk: traceCheck.ok, verifyCommand: i.verifyCommand });
+  const narrative = buildNarrative({ source: i.source, sessionId: i.sessionId, record: baseCtx.record, task: i.task, decisions, results: pass1, traceOk: traceCheck.ok, verifyCommand: i.verifyCommand, policies });
   ids.narrative = store.put(i.source, "narrative", { path: "report/narrative.md", text: narrative }).id;
   // Pass 2: same checks, now citing the narrative evidence item.
   const results = assess({ ...baseCtx, ids, narrative }, catalog);
@@ -134,7 +187,19 @@ export function buildPacket(i: PacketInput): PacketOutput {
   const bundleDir = join(root, "bundle");
   rmSync(stage, { recursive: true, force: true });
   rmSync(bundleDir, { recursive: true, force: true });
-  const { results, decisions } = assessToDir({ ...i, out: stage, verifyCommand: verifyCommandFor(i.signer, bundleDir) });
+  let assessed: { results: ControlResult[]; decisions: Decision[] };
+  try {
+    assessed = assessToDir({ ...i, out: stage, verifyCommand: verifyCommandFor(i.signer, bundleDir) });
+  } catch (e) {
+    // A policy the verdicts did not come from is never sealed under a
+    // signature. Same shape as the COL-10 refusal below: no bundle, no stage.
+    if (e instanceof PolicyBindingError) {
+      rmSync(stage, { recursive: true, force: true });
+      throw new Error(`refusing to sign ${i.name}: ${e.message}`);
+    }
+    throw e;
+  }
+  const { results, decisions } = assessed;
 
   // A credential-shaped value that survived redaction is not sealed into a
   // signed packet with a red row next to it. Refuse before the bundle exists,

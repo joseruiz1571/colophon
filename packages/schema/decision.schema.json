@@ -29,6 +29,7 @@
     "session_id": { "type": "string" },
     "call_index": { "type": "integer", "minimum": 0 },
     "record_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "policy_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Optional. SHA-256 of the bytes of the policy file that produced this verdict (gate.rego for a Colophon PEP). The packet stages that file under policy/ and bundle verify asserts the hash matches it." },
     "ts": { "type": "string", "format": "date-time" },
     "prev_sha256": { "type": ["string", "null"], "pattern": "^[0-9a-f]{64}$" },
     "this_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }

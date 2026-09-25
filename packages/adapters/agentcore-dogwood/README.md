@@ -17,6 +17,10 @@ A live CloudWatch/EventBridge *collector* (SDK pull) is not claimed.
 
 Vendored live ENFORCE RoE session: `packages/fixtures/agentcore-dogwood/live-roe-7461903f.jsonl` plus sidecar `live-roe-7461903f.meta.json`.
 
+### Policies in force are bound on the Record
+
+The `colophon-roe` Declaration names the three policies the engine held during the capture under `pep.policies[]`, each with `id` (the AgentCore `policyId`, which is what `determiningPolicies` cites and therefore what `Decision.rule_ids` carries), `kind` (`cedar` or `dogwood-temporal`), `path`, and `sha256`. The statement files live under `packages/fixtures/agentcore-dogwood/policies/`. They are the `get-policy` statements with the account id masked (`****`) and the IAM principal generalized to `roe-operator`, the same D28 rule the log lines follow; the hash is over the redacted file bytes, and the narrative says so. The packet stages each file as `policy/<id>.cedar`, `bundle verify` asserts each declared hash on a `policy:` line, and COL-11 additionally requires every allow decision's rule ids to be declared policy ids. Both refusals in the live capture cite `AGENTCORE-DEFAULT-DENY`: no permit matched. Binding the permits does not change that; it lets the reader see the permits that did not match. Not claimed: byte identity with what AWS enforced (two substitutions were applied), or a re-run of Cedar/Dogwood.
+
 Join on **`request_id`**:
 
 | log line | role |

@@ -125,7 +125,9 @@ bundle/
 
 **Declaration**: operator-authored YAML, unsigned intent. **Record**: the Declaration canonicalized (RFC 8785), hashed, Cosign-signed, and bound by the gate at startup. **Decision**: one PEP-agnostic verdict (`allow` / `deny` / `escalate`, rule ids, reasons naming the binding field). **Trace**: chained Decisions. **Evidence**: content-addressed payloads. **Bundle**: the directory. **Packet**: bundle plus signature. There is no "Agent Card"; an A2A card may be cited as `identity.a2a_card_uri` and nothing more.
 
-Optional Declaration `pep` (foreign PEP binding): when the PEP is AgentCore + Dogwood, the signed Record should name the agent/MCP tool schema ref, Dogwood policy set id + version/hash, Gateway id if known, and `ENFORCE` vs `LOG_ONLY`. See [`packages/adapters/agentcore-dogwood/README.md`](packages/adapters/agentcore-dogwood/README.md).
+Optional Declaration `pep` (foreign PEP binding): when the PEP is AgentCore + Dogwood, the signed Record should name the agent/MCP tool schema ref, Dogwood policy set id + version/hash, Gateway id if known, `ENFORCE` vs `LOG_ONLY`, and `pep.policies[]`: each policy the engine held, with the hash of its statement file. See [`packages/adapters/agentcore-dogwood/README.md`](packages/adapters/agentcore-dogwood/README.md).
+
+**The policy text is in the packet.** A Colophon PEP (gate or hook) stamps every Decision with `policy_sha256`, the hash of the `gate.rego` bytes that decided it; a foreign-PEP Record declares its policies with their hashes. The packet stages those files under `policy/`, `bundle verify` asserts every hash on its own `policy:` line, and catalog control COL-11 reports the binding (or its absence). Swap the policy after the fact and verification fails on the binding, not only on the manifest (S48, S49, D33).
 
 ## Three layers (detection vs PEP vs custody)
 
@@ -150,7 +152,7 @@ How a Colophon trace line maps onto the IETF draft's decision receipt:
 | `decision` | `Decision.effect` |
 | `tool_name` | `Decision.tool` |
 | `reason` | `Decision.reasons[]` (`explanation` role is the PEP's words; `binding` names the Record field) |
-| `policy_digest` | `Decision.record_sha256` for the gate; `Record.pep.policy_set_hash` for a foreign PEP |
+| `policy_digest` | `Decision.policy_sha256` (the `gate.rego` bytes, staged as `policy/gate.rego`) plus `Decision.record_sha256` for the gate and hook; `Record.pep.policies[].sha256` (each statement staged as `policy/<id>.cedar`) for a foreign PEP |
 | `previousReceiptHash` | `Decision.prev_sha256` (plus the trace head commitment) |
 | `payload_digest` | `Decision.args_sha256` |
 | `issued_at` | `Decision.ts` |

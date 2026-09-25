@@ -137,11 +137,13 @@ describe("hook end to end", () => {
     expect(t[0]!.rule_ids).toEqual(["COL-GATE-OPA-ERROR"]);
   });
 
-  test("seal: verified packet, 8/8 controls, SIGNATURE only after verify", () => {
+  test("seal: verified packet, 9/9 controls including the policy binding, SIGNATURE only after verify", () => {
     const p = sealSession({ sessionId: "cc-live-0001", traceDir, recordPath, pubkeyPath: pub, outRoot: join(dir, "out"), signer: { mode: "key", key, pub, password: "test", signingConfig: offlineSigningConfig(join(dir, "keys")) } });
     expect(p.source).toBe("colophon-hook");
     expect(p.results.every((r) => r.state === "satisfied")).toBe(true);
-    expect(p.results).toHaveLength(8);
+    expect(p.results).toHaveLength(9);
+    expect(p.decisions.every((d) => typeof d.policy_sha256 === "string")).toBe(true);
+    expect(existsSync(join(p.bundleDir, "policy", "gate.rego"))).toBe(true);
     expect(existsSync(p.signaturePath)).toBe(true);
     expect(verifyBundle({ dir: p.bundleDir, pubkey: pub }).ok).toBe(true);
     const narrative = readFileSync(join(p.bundleDir, "report", "narrative.md"), "utf8");
