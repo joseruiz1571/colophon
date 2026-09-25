@@ -7,7 +7,7 @@
  */
 import { describe, expect, test } from "bun:test";
 import { join, resolve } from "node:path";
-import { assess, loadCatalog, type AssessContext, type StagedPolicy } from "../packages/catalog/checks.ts";
+import { assess, loadCatalog, policySetHash, type AssessContext, type StagedPolicy } from "../packages/catalog/checks.ts";
 import { EvidenceStore } from "../packages/evidence/store.ts";
 import { argsSha256, sealDecision, type Decision, type DecisionDraft } from "../packages/normalize/decision.ts";
 import { buildNarrative } from "../packages/report/narrative.ts";
@@ -88,6 +88,14 @@ describe("COL-11 foreign branch fails closed", () => {
     const r = col11(ctx("agentcore-dogwood", roe, chain([foreign({})]), declaredStaged.slice(1)));
     expect(r.state).toBe("not-satisfied");
     expect(r.rationale).toMatch(/1 of 3 declared policies are not staged/);
+  });
+  test("policy_set_hash recomputes from the declared hashes; an edited value → not-satisfied", () => {
+    const declared = roe.declaration.pep!.policies!;
+    expect(policySetHash(declared.map((p) => p.sha256))).toBe(roe.declaration.pep!.policy_set_hash!);
+    const edited = buildRecord({ ...roe.declaration, pep: { ...roe.declaration.pep!, policy_set_hash: "c".repeat(64) } });
+    const r = col11(ctx("agentcore-dogwood", edited, chain([foreign({ record_sha256: edited.canonical_sha256 })]), declaredStaged));
+    expect(r.state).toBe("not-satisfied");
+    expect(r.rationale).toMatch(/policy_set_hash cccccccccccc… does not recompute/);
   });
 });
 

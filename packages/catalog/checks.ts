@@ -10,6 +10,7 @@ import type { EvidenceStore } from "../evidence/store.ts";
 import { CitationError } from "../evidence/store.ts";
 import { decide } from "../gate/eval.ts";
 import { bindingReasons, CREDENTIAL_PATTERN, type Decision } from "../normalize/decision.ts";
+import { sha256Hex } from "../schema/canonical.ts";
 import type { ColophonRecord } from "../schema/record.ts";
 import type { TraceVerification } from "../trace/trace.ts";
 
@@ -68,6 +69,11 @@ function scanForSecrets(value: unknown): string | null {
     }
   }
   return null;
+}
+
+/** The declared policy set's commitment: SHA-256 over the per-policy hashes, sorted, newline-joined, with a trailing newline (the shell form is `shasum -a 256 *.cedar | awk '{print $1}' | sort | shasum -a 256`). */
+export function policySetHash(hashes: string[]): string {
+  return sha256Hex([...hashes].sort().map((h) => h + "\n").join(""));
 }
 
 /** Transports where Colophon itself is the PEP (verdicts from gate.rego). Any other source is a foreign PEP whose decisions were normalized. */
@@ -229,6 +235,11 @@ const checks: Record<string, Check> = {
     const undeclared = [...new Set(allows.flatMap((d) => d.rule_ids.filter((r) => !ids.has(r))))];
     if (undeclared.length > 0) {
       return { control, state: "not-satisfied", rationale: `Allow decisions cite policy ids the Record does not declare: ${undeclared.join(", ")}. A permit the packet cannot show the text of is not a bound permit.`, cited };
+    }
+    // policy_set_hash, when declared, is a commitment to the set: recomputed here so a stale or edited value cannot ride along unchecked.
+    const setHash = ctx.record.declaration.pep?.policy_set_hash;
+    if (setHash && setHash !== policySetHash(declared.map((p) => p.sha256))) {
+      return { control, state: "not-satisfied", rationale: `pep.policy_set_hash ${setHash.slice(0, 12)}… does not recompute from the ${declared.length} declared policy hashes (expected ${policySetHash(declared.map((p) => p.sha256)).slice(0, 12)}…).`, cited };
     }
     const denyIds = [...new Set(ctx.decisions.filter((d) => d.effect === "deny").flatMap((d) => d.rule_ids))].sort();
     return { control, state: "satisfied", rationale: `${declared.length} policies declared on Record ${ctx.record.declaration.name} (${declared.map((p) => `${p.id} ${p.kind}`).join("; ")}), each staged under policy/ with a matching hash; every allow cites a declared policy id${denyIds.length ? `; refusals cite ${denyIds.join(", ")}` : ""}. Hashes are over the staged statement files.`, cited };

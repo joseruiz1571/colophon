@@ -70,8 +70,13 @@ export function buildNarrative(n: NarrativeInput): string {
       if (pep.policy_engine_id) lines.push(`- Policy engine: \`${pep.policy_engine_id}\`.`);
       if (pep.gateway_id) lines.push(`- Gateway: \`${pep.gateway_id}\`.`);
       if (pep.policies?.length) {
+        const stagedById = new Map((n.policies ?? []).filter((p) => p.role === "declared").map((p) => [p.id, p]));
         lines.push(`- Policies in force, declared on the signed Record and staged in this packet (hash over the staged statement file):`);
-        for (const p of pep.policies) lines.push(`  - \`${p.id}\` (${p.kind}) → \`policy/${p.id}.cedar\`, sha256 \`${p.sha256}\`.`);
+        for (const p of pep.policies) {
+          const s = stagedById.get(p.id);
+          lines.push(`  - \`${p.id}\` (${p.kind}) → ${s ? `\`${s.path}\`` : "not staged"}, sha256 \`${p.sha256}\`.`);
+        }
+        if (pep.policy_set_hash) lines.push(`- Policy set commitment (sha256 over the sorted per-policy hashes, newline-joined): \`${pep.policy_set_hash}\`.`);
         lines.push("- A refusal under the PEP's default deny cites no permit because none matched; the permits that existed are the files above.");
       } else {
         lines.push("- No policies are declared on the Record, so this packet cannot show which policy text produced these decisions (COL-11 below).");

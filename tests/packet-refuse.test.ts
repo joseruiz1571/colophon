@@ -56,7 +56,7 @@ describe("packet refuses to sign a credential leak", () => {
     expect(readdirSync(join(outRoot, "leak"))).toEqual([]);
     // The commitment of the same value is what a redacted view would carry.
     expect(sha256Hex(fake)).toMatch(/^[0-9a-f]{64}$/);
-  });
+  }, 30_000); // assess runs OPA and writes an evidence store; sat near bun's 5 s default under load in a fresh-clone probe run
 });
 
 describe("packet refuses to sign a policy its verdicts did not come from", () => {
@@ -85,7 +85,28 @@ describe("packet refuses to sign a policy its verdicts did not come from", () =>
     expect(() => buildPacket({ name: "stale", source: "colophon-hook", sessionId: "stale", task: "stale policy test", outRoot, tracePath, signer: noSigner(dir) })).toThrow(/refusing to sign stale: policy_sha256 mismatch/);
     expect(existsSync(join(outRoot, "stale", "bundle"))).toBe(false);
     expect(existsSync(join(outRoot, "stale", "stage"))).toBe(false);
-  });
+  }, 30_000);
+
+  test("a Record whose declared policy path is absolute or escapes the working directory → refused before any file is read", () => {
+    const dir = mkdtempSync(join(tmpdir(), "colophon-policy-refuse-"));
+    const decl = loadDeclaration(join(FIX, "declarations", "colophon-roe.yaml"));
+    const first = decl.pep!.policies![0]!;
+    for (const path of ["/etc/hosts", "../../etc/hosts", "packages/../../outside.cedar"]) {
+      const tampered: Declaration = { ...decl, pep: { ...decl.pep!, policies: [{ ...first, path }] } };
+      const record = buildRecord(tampered);
+      const recordPath = join(dir, `${path.replace(/[^a-z]/g, "_")}.record.json`);
+      const sigPath = recordPath.replace(/\.record\.json$/, ".record.sigstore.json");
+      writeFileSync(recordPath, JSON.stringify(record, null, 2) + "\n");
+      writeFileSync(sigPath, "{}\n");
+      const tracePath = join(dir, "trace", `${path.replace(/[^a-z]/g, "_")}.jsonl`);
+      const w = new TraceWriter(tracePath);
+      w.append({ source: "agentcore-dogwood", effect: "allow", rule_ids: [first.id], reasons: [{ field: "input", value: {} }], tool: "StatusTarget___get_status", args_sha256: argsSha256({}), args_redacted: {}, session_id: "p", call_index: 0, record_sha256: record.canonical_sha256, ts: "2026-09-25T00:00:00Z" });
+      w.seal();
+      const outRoot = join(dir, "out", path.replace(/[^a-z]/g, "_"));
+      expect(() => buildPacket({ name: "p", source: "agentcore-dogwood", sessionId: "p", task: "path test", outRoot, tracePath, record: { path: recordPath, sigPath, record }, signer: noSigner(dir) })).toThrow(/not a path inside the working directory/);
+      expect(existsSync(join(outRoot, "p", "bundle"))).toBe(false);
+    }
+  }, 30_000);
 
   test("a Record that declares a policy whose file hashes differently → no bundle, error names the policy id", () => {
     const dir = mkdtempSync(join(tmpdir(), "colophon-policy-refuse-"));
@@ -117,5 +138,5 @@ describe("packet refuses to sign a policy its verdicts did not come from", () =>
     expect(() => buildPacket({ name: "roe", source: "agentcore-dogwood", sessionId: "roe", task: "declared policy test", outRoot, tracePath, record: { path: recordPath, sigPath, record }, signer: noSigner(dir) })).toThrow(new RegExp(`refusing to sign roe: Record colophon-roe declares policy ${first.id} with sha256 ffffffffffff`));
     expect(existsSync(join(outRoot, "roe", "bundle"))).toBe(false);
     expect(existsSync(join(outRoot, "roe", "stage"))).toBe(false);
-  });
+  }, 30_000);
 });

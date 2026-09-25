@@ -111,7 +111,8 @@ bundle/
   manifest.json              every file, sha256, bytes, root hash — written last
   manifest.sigstore.json     Cosign 3 bundle over manifest.json
   records/                   the signed Record the gate bound (gate sessions)
-  trace/<session>.jsonl      hash-chained Decisions
+  policy/                    the policy text the verdicts came from: gate.rego (Colophon PEP) or <id>.cedar per declared foreign policy
+  trace/<session>.jsonl      hash-chained Decisions (each carries policy_sha256 when Colophon decided)
   evidence/<sha256>.json     content-addressed evidence, cited or not
   catalog/controls.yaml      the controls evaluated (stands in for an assessment plan)
   report/assessment-results.json   OSCAL 1.2.3; findings → observations → back-matter rlinks → files + hashes

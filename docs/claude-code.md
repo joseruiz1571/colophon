@@ -4,7 +4,7 @@ Declare it, run it, seal it, hand it to a stranger. This page is the whole loop 
 
 ## What you get
 
-A Claude Code session where every tool call was decided by your signed Declaration before it ran, a hash-chained trace of those decisions, and at the end a packet a stranger verifies with `cosign` alone. The hook is the policy enforcement point; `gate.rego` through OPA is the only thing that decides; the hook rewrites nothing.
+A Claude Code session where every tool call was decided by your signed Declaration before it ran, a hash-chained trace of those decisions, and at the end a packet a stranger verifies with `cosign` alone. If the session ran under `COLOPHON_GATE_POLICY`, run `seal` under the same value: the packet stages the policy the decisions name and refuses to sign otherwise. The hook is the policy enforcement point; `gate.rego` through OPA is the only thing that decides; the hook rewrites nothing.
 
 ## Prerequisites
 

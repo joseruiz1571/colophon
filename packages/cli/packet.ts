@@ -5,7 +5,7 @@
  * the caller decides the exit code. Prints SIGNATURE only after verify passed.
  */
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { basename, join, relative, resolve } from "node:path";
+import { basename, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { assess, COLOPHON_PEP_SOURCES, loadCatalog, type ControlResult, type StagedPolicy } from "../catalog/checks.ts";
 import { gatePolicyPath } from "../gate/eval.ts";
 import { createBundle, hashFile, SIGNATURE } from "../bundle/manifest.ts";
@@ -97,9 +97,14 @@ export function stagePolicies(stage: string, source: string, decisions: Decision
       out.push({ role: "gate", path: "policy/gate.rego", sha256: h });
     }
   }
+  const root = resolve(process.cwd());
   for (const p of record?.declaration.pep?.policies ?? []) {
-    const src = resolve(process.cwd(), p.path);
     const name = record!.declaration.name;
+    // Repo-relative only: an absolute path or one that escapes the working
+    // directory would let a Record pull any file on the build machine into a
+    // signed packet under a policy name.
+    const src = resolve(root, p.path);
+    if (isAbsolute(p.path) || !(src === root || src.startsWith(root + sep))) throw new PolicyBindingError(`Record ${name} declares policy ${p.id} at ${p.path}, which is not a path inside the working directory`);
     if (!existsSync(src)) throw new PolicyBindingError(`Record ${name} declares policy ${p.id} at ${p.path}, which does not exist`);
     const h = hashFile(src).sha256;
     if (h !== p.sha256) throw new PolicyBindingError(`Record ${name} declares policy ${p.id} with sha256 ${p.sha256.slice(0, 12)}… but ${p.path} hashes to ${h.slice(0, 12)}…`);
@@ -223,6 +228,12 @@ export function buildPacket(i: PacketInput): PacketOutput {
   else signBlobKeyless({ blob: manifest, out: signaturePath });
 
   const outcome = verifyBundle(i.signer.mode === "key" ? { dir: bundleDir, pubkey: i.signer.pub } : { dir: bundleDir, certIdentityRegexp: i.signer.certIdentityRegexp, oidcIssuer: i.signer.oidcIssuer });
-  if (!outcome.ok) throw new Error(`bundle verify failed right after signing ${relative(process.cwd(), bundleDir)}: ${outcome.failures.join("; ")}`);
+  if (!outcome.ok) {
+    // A signed bundle its own verifier rejects is not left on disk to be
+    // mistaken for a packet.
+    rmSync(bundleDir, { recursive: true, force: true });
+    rmSync(stage, { recursive: true, force: true });
+    throw new Error(`bundle verify failed right after signing ${relative(process.cwd(), bundleDir)}; the bundle was removed: ${outcome.failures.join("; ")}`);
+  }
   return { name: i.name, bundleDir, signaturePath, decisions, results, sessionId: i.sessionId, source: i.source, task: i.task };
 }
