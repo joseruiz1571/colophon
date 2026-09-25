@@ -19,7 +19,7 @@ import { argsSha256, redactArgs } from "../normalize/decision.ts";
 import { RECORD_POLICY, opaEval } from "../policy/opa.ts";
 import { loadRecord, verifyRecordHashes, type ColophonRecord } from "../schema/record.ts";
 import { TraceWriter } from "../trace/trace.ts";
-import { decide, selfTest, type Verdict } from "./eval.ts";
+import { decide, policySha256, selfTest, type Verdict } from "./eval.ts";
 
 export type GateOptions = {
   recordPath: string;
@@ -118,6 +118,9 @@ export async function runGate(opts: GateOptions): Promise<void> {
     const argsIn = (req.params.arguments ?? {}) as Record<string, unknown>;
     const context = { session_id: opts.sessionId, call_index: callIndex++ };
     const verdict: Verdict = decide(record, { name, arguments: argsIn }, context);
+    // Hashed per call, never cached at startup: the Decision names the bytes
+    // that were on disk when this verdict was produced.
+    const policyHash = policySha256();
     trace.append({
       source: "colophon-gate",
       effect: verdict.effect,
@@ -129,6 +132,7 @@ export async function runGate(opts: GateOptions): Promise<void> {
       session_id: context.session_id,
       call_index: context.call_index,
       record_sha256: record.canonical_sha256,
+      ...(policyHash ? { policy_sha256: policyHash } : {}),
       ts: new Date().toISOString(),
     });
     if (verdict.effect !== "allow") {

@@ -29,6 +29,8 @@ export type Decision = {
   session_id?: string;
   call_index?: number;
   record_sha256?: string;
+  /** SHA-256 of the bytes of the policy file that produced this verdict (a Colophon PEP: gate.rego). Optional like record_sha256; a foreign PEP binds its policies on the Record's pep.policies instead. */
+  policy_sha256?: string;
   ts: string;
   prev_sha256: string | null;
   this_sha256: string;

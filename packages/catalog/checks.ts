@@ -10,6 +10,7 @@ import type { EvidenceStore } from "../evidence/store.ts";
 import { CitationError } from "../evidence/store.ts";
 import { decide } from "../gate/eval.ts";
 import { bindingReasons, CREDENTIAL_PATTERN, type Decision } from "../normalize/decision.ts";
+import { sha256Hex } from "../schema/canonical.ts";
 import type { ColophonRecord } from "../schema/record.ts";
 import type { TraceVerification } from "../trace/trace.ts";
 
@@ -35,6 +36,9 @@ export function loadCatalog(): Catalog {
 export type ControlState = "satisfied" | "not-satisfied";
 export type ControlResult = { control: ControlDef; state: ControlState; rationale: string; cited: string[] };
 
+/** A policy file staged into the packet under policy/, with the hash the manifest will carry. `gate` is the Colophon PEP's own gate.rego; `declared` is a foreign PEP policy the Record names in pep.policies. */
+export type StagedPolicy = { role: "gate" | "declared"; path: string; sha256: string; id?: string; kind?: string };
+
 export type AssessContext = {
   source: string;
   record: ColophonRecord | null;
@@ -42,8 +46,10 @@ export type AssessContext = {
   trace: TraceVerification;
   store: EvidenceStore;
   /** Evidence ids the checks may cite. */
-  ids: { record?: string; trace: string; summary: string; selftest?: string; narrative?: string };
+  ids: { record?: string; trace: string; summary: string; selftest?: string; narrative?: string; policies?: string };
   narrative: string;
+  /** Policy files staged into the packet (empty when nothing binds the verdicts to a policy text). */
+  policies?: StagedPolicy[];
 };
 
 /** Same pattern redaction commits on (normalize/decision.ts); a survivor here is a redaction gap, and the packet builder refuses to sign it. */
@@ -63,6 +69,11 @@ function scanForSecrets(value: unknown): string | null {
     }
   }
   return null;
+}
+
+/** The declared policy set's commitment: SHA-256 over the per-policy hashes, sorted, newline-joined, with a trailing newline (the shell form is `shasum -a 256 *.cedar | awk '{print $1}' | sort | shasum -a 256`). */
+export function policySetHash(hashes: string[]): string {
+  return sha256Hex([...hashes].sort().map((h) => h + "\n").join(""));
 }
 
 /** Transports where Colophon itself is the PEP (verdicts from gate.rego). Any other source is a foreign PEP whose decisions were normalized. */
@@ -177,6 +188,61 @@ const checks: Record<string, Check> = {
       if (hit) return { control, state: "not-satisfied", rationale: `Decision ${d.call_index ?? "?"} (${d.tool}) carries a credential-shaped value (${hit}).`, cited: [ctx.ids.trace] };
     }
     return { control, state: "satisfied", rationale: `${ctx.decisions.length} decisions scanned (redacted arguments and reasons); arguments are stored as SHA-256 plus a redacted view and no credential-shaped value is present.`, cited: [ctx.ids.trace] };
+  },
+
+  "policy-bound": (ctx, control) => {
+    const staged = ctx.policies ?? [];
+    const cited = [ctx.ids.trace, ...(ctx.ids.policies ? [ctx.ids.policies] : []), ...(ctx.ids.record ? [ctx.ids.record] : [])];
+    if (COLOPHON_PEP_SOURCES.has(ctx.source)) {
+      // Colophon decided: every decision names the bytes of gate.rego that decided it.
+      const gate = staged.find((p) => p.role === "gate");
+      const withHash = ctx.decisions.filter((d) => d.policy_sha256);
+      if (!gate || withHash.length === 0) {
+        return { control, state: "not-satisfied", rationale: `No policy file is staged for source ${ctx.source}${withHash.length === 0 ? ` and none of the ${ctx.decisions.length} decisions carries policy_sha256` : ""}; the packet cannot show which policy text produced these verdicts.`, cited };
+      }
+      const off = ctx.decisions.filter((d) => d.policy_sha256 !== gate.sha256);
+      if (off.length > 0) {
+        const first = off[0]!;
+        return { control, state: "not-satisfied", rationale: `${off.length} of ${ctx.decisions.length} decisions are not bound to the staged ${gate.path} (sha256 ${gate.sha256.slice(0, 12)}…): call ${first.call_index ?? "?"} on ${first.tool} carries ${first.policy_sha256 ? `policy_sha256 ${first.policy_sha256.slice(0, 12)}…` : "no policy_sha256 (the policy could not be read when it was decided)"}.`, cited };
+      }
+      return { control, state: "satisfied", rationale: `${ctx.decisions.length} decisions carry policy_sha256 ${gate.sha256.slice(0, 12)}…, equal to the staged ${gate.path}; the text that produced every verdict is in the packet.`, cited };
+    }
+    // A foreign PEP decided: the Record declares the policies that were in force, each staged with its hash, and every permit the PEP cited is one of them.
+    const declared = ctx.record?.declaration.pep?.policies ?? [];
+    if (!ctx.record || declared.length === 0) {
+      return { control, state: "not-satisfied", rationale: `${ctx.record ? `Record ${ctx.record.declaration.name} declares no pep.policies` : "No Record is bound"} for foreign PEP ${ctx.source}; the packet cannot show which policy text produced these decisions.`, cited };
+    }
+    if (ctx.decisions.length === 0) {
+      return { control, state: "not-satisfied", rationale: `The session contains no decisions, so the binding was not exercised. It is reported not-satisfied rather than assumed.`, cited };
+    }
+    const unstaged = declared.filter((p) => !staged.some((s) => s.role === "declared" && s.id === p.id && s.sha256 === p.sha256));
+    if (unstaged.length > 0) {
+      return { control, state: "not-satisfied", rationale: `${unstaged.length} of ${declared.length} declared policies are not staged with a matching hash: ${unstaged.map((p) => p.id).join(", ")}.`, cited };
+    }
+    // A decision that carries policy_sha256 must name one of the staged files, whatever its source.
+    const stagedHashes = new Set(staged.map((s) => s.sha256));
+    const strayHash = ctx.decisions.find((d) => d.policy_sha256 && !stagedHashes.has(d.policy_sha256));
+    if (strayHash) {
+      return { control, state: "not-satisfied", rationale: `Call ${strayHash.call_index ?? "?"} on ${strayHash.tool} carries policy_sha256 ${strayHash.policy_sha256!.slice(0, 12)}…, which matches no policy staged in this packet.`, cited };
+    }
+    const ids = new Set(declared.map((p) => p.id));
+    const allows = ctx.decisions.filter((d) => d.effect === "allow");
+    // An allow that cites no policy at all is an undeclared permit: nothing in the packet says what let it through.
+    const noPermit = allows.filter((d) => d.rule_ids.length === 0);
+    if (noPermit.length > 0) {
+      return { control, state: "not-satisfied", rationale: `${noPermit.length} allow decision(s) cite no policy id at all (e.g. call ${noPermit[0]!.call_index ?? "?"} on ${noPermit[0]!.tool}); the packet cannot say which permit let them through.`, cited };
+    }
+    const undeclared = [...new Set(allows.flatMap((d) => d.rule_ids.filter((r) => !ids.has(r))))];
+    if (undeclared.length > 0) {
+      return { control, state: "not-satisfied", rationale: `Allow decisions cite policy ids the Record does not declare: ${undeclared.join(", ")}. A permit the packet cannot show the text of is not a bound permit.`, cited };
+    }
+    // policy_set_hash, when declared, is a commitment to the set: recomputed here so a stale or edited value cannot ride along unchecked.
+    const setHash = ctx.record.declaration.pep?.policy_set_hash;
+    if (setHash && setHash !== policySetHash(declared.map((p) => p.sha256))) {
+      return { control, state: "not-satisfied", rationale: `pep.policy_set_hash ${setHash.slice(0, 12)}… does not recompute from the ${declared.length} declared policy hashes (expected ${policySetHash(declared.map((p) => p.sha256)).slice(0, 12)}…).`, cited };
+    }
+    const denyIds = [...new Set(ctx.decisions.filter((d) => d.effect === "deny").flatMap((d) => d.rule_ids))].sort();
+    return { control, state: "satisfied", rationale: `${declared.length} policies declared on Record ${ctx.record.declaration.name} (${declared.map((p) => `${p.id} ${p.kind}`).join("; ")}), each staged under policy/ with a matching hash; every allow cites a declared policy id${denyIds.length ? `; refusals cite ${denyIds.join(", ")}` : ""}. Hashes are over the staged statement files.`, cited };
   },
 };
 

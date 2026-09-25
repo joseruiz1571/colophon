@@ -4,7 +4,7 @@ Declare it, run it, seal it, hand it to a stranger. This page is the whole loop 
 
 ## What you get
 
-A Claude Code session where every tool call was decided by your signed Declaration before it ran, a hash-chained trace of those decisions, and at the end a packet a stranger verifies with `cosign` alone. The hook is the policy enforcement point; `gate.rego` through OPA is the only thing that decides; the hook rewrites nothing.
+A Claude Code session where every tool call was decided by your signed Declaration before it ran, a hash-chained trace of those decisions, and at the end a packet a stranger verifies with `cosign` alone. If the session ran under `COLOPHON_GATE_POLICY`, run `seal` under the same value: the packet stages the policy the decisions name and refuses to sign otherwise. The hook is the policy enforcement point; `gate.rego` through OPA is the only thing that decides; the hook rewrites nothing.
 
 ## Prerequisites
 
@@ -89,7 +89,7 @@ The first command needs only cosign. The second walks manifest → signature →
 
 ## What this proves, and what it does not
 
-Proves: which Declaration was in force (signed, bound on every call); what each call was projected to and how it was decided, in order, unedited since; that refusals cite the rule and the Record field; that the self-test denied an undeclared tool and a broken policy engine on this machine at session start.
+Proves: which Declaration was in force (signed, bound on every call); which policy text decided every call (each decision carries `policy_sha256`, the hash of the `gate.rego` bytes, and the packet stages that file under `policy/`); what each call was projected to and how it was decided, in order, unedited since; that refusals cite the rule and the Record field; that the self-test denied an undeclared tool and a broken policy engine on this machine at session start.
 
 Does not prove: what a shell command did (the gate cannot parse shell, so `shell.exec` is bounded only by `requires_approval`; a Bash `printf > /tmp/x` is an `ask`, not a sandbox check, and the first live session showed exactly that); what the human chose when asked (the hook sees the question, not the answer; a PostToolUse hook would); that the Declaration was the right policy; the content of files (`data_class` is the operator's label from `defaults`, recorded as such); that a call bypassed hooks entirely (a disabled hook records nothing, which the packet cannot show). Custody is provable. Judgment is not.
 

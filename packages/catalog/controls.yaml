@@ -94,3 +94,13 @@ controls:
     framework_refs:
       - { framework: OWASP-LLM-TOP10, ref: "LLM02:2025 Sensitive Information Disclosure" }
       - { framework: NIST-800-53, ref: "SC-28" }
+  - id: COL-11
+    title: Policy bound into the packet
+    intent: The policy text that produced every verdict is in the packet, by hash, so a verdict can be re-derived from the rules that were in force and not from whatever rules exist today.
+    phase: assess
+    check: policy-bound
+    falsifier: For a Colophon PEP, any decision whose policy_sha256 is missing or differs from the staged policy/gate.rego. For a foreign PEP, a Record that declares no pep.policies, a declared policy whose staged file is missing or hashes differently, or an allow decision citing a policy id the Record does not declare.
+    framework_refs:
+      - { framework: NIST-800-53, ref: "CM-3" }
+      - { framework: NIST-AI-RMF, ref: "GOVERN 1.4" }
+      - { framework: Proof-of-Control, ref: "policy_bundle_hash (evidence claim set, v0.1.4)" }

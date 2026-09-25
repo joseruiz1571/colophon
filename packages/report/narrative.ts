@@ -4,7 +4,7 @@
  * does not. Never says a control "holds vacuously": an unexercised control is
  * reported not-satisfied by the catalog and the narrative repeats that.
  */
-import type { ControlResult } from "../catalog/checks.ts";
+import type { ControlResult, StagedPolicy } from "../catalog/checks.ts";
 import { bindingReasons, contextReasons, explanationReasons, type Decision } from "../normalize/decision.ts";
 import type { ColophonRecord } from "../schema/record.ts";
 
@@ -17,6 +17,8 @@ export type NarrativeInput = {
   results: ControlResult[];
   traceOk: boolean;
   verifyCommand: string;
+  /** Policy files staged under policy/ in this packet; empty when nothing binds the verdicts to a policy text. */
+  policies?: StagedPolicy[];
 };
 
 function primaryArg(d: Decision): string {
@@ -42,6 +44,17 @@ export function buildNarrative(n: NarrativeInput): string {
     lines.push("Colophon was the policy enforcement point here, running as a Claude Code PreToolUse hook: every tool call was decided by `gate.rego` through OPA before Claude Code ran it, and the hook rewrote no tool input. Tool names are the declared projections of Claude Code's (`Write` → `fs.write`, paths relative to the session's working directory); each decision carries the Claude tool name and a hash of the full input as context. An `ask` records that the human was asked, not what the human chose.");
     lines.push("");
   }
+  const gatePolicy = (n.policies ?? []).find((p) => p.role === "gate");
+  // Keyed on the decisions, never on the staged file alone: a staged policy
+  // with unbound decisions beside it is reported as exactly that.
+  const unboundToGate = gatePolicy ? n.decisions.filter((d) => d.policy_sha256 !== gatePolicy.sha256) : [];
+  if (gatePolicy && unboundToGate.length === 0 && n.decisions.length > 0) {
+    lines.push(`Policy bound: every decision carries \`policy_sha256\` \`${gatePolicy.sha256}\`, the hash of the \`gate.rego\` bytes that decided it, and that file is staged in this packet as \`${gatePolicy.path}\`. A verifier compares the two; the control results below were computed at build time against that same text, and are not re-evaluated at verification time.`);
+    lines.push("");
+  } else if (gatePolicy) {
+    lines.push(`Policy staged, not fully bound: \`${gatePolicy.path}\` (sha256 \`${gatePolicy.sha256}\`) is in this packet, but ${unboundToGate.length} of ${n.decisions.length} decisions do not carry that hash (${unboundToGate.slice(0, 3).map((d) => `call ${d.call_index ?? "?"} on \`${d.tool}\`${d.policy_sha256 ? "" : ", no policy_sha256"}`).join("; ")}${unboundToGate.length > 3 ? "; …" : ""}). COL-11 below reads not-satisfied for that reason.`);
+    lines.push("");
+  }
   if (n.source === "agentcore-dogwood" || n.record?.declaration.pep) {
     const pep = n.record?.declaration.pep;
     lines.push("## Declared rules of engagement (foreign PEP)");
@@ -56,6 +69,18 @@ export function buildNarrative(n: NarrativeInput): string {
       if (pep.policy_set_id) lines.push(`- Dogwood policy set: \`${pep.policy_set_id}\`${pep.policy_set_version ? ` version ${pep.policy_set_version}` : ""}${pep.policy_set_hash ? ` (sha256 \`${pep.policy_set_hash}\`)` : ""}.`);
       if (pep.policy_engine_id) lines.push(`- Policy engine: \`${pep.policy_engine_id}\`.`);
       if (pep.gateway_id) lines.push(`- Gateway: \`${pep.gateway_id}\`.`);
+      if (pep.policies?.length) {
+        const stagedById = new Map((n.policies ?? []).filter((p) => p.role === "declared").map((p) => [p.id, p]));
+        lines.push(`- Policies in force, declared on the signed Record and staged in this packet (hash over the staged statement file):`);
+        for (const p of pep.policies) {
+          const s = stagedById.get(p.id);
+          lines.push(`  - \`${p.id}\` (${p.kind}) → ${s ? `\`${s.path}\`` : "not staged"}, sha256 \`${p.sha256}\`.`);
+        }
+        if (pep.policy_set_hash) lines.push(`- Policy set commitment (sha256 over the sorted per-policy hashes, newline-joined): \`${pep.policy_set_hash}\`.`);
+        lines.push("- A refusal under the PEP's default deny cites no permit because none matched; the permits that existed are the files above.");
+      } else {
+        lines.push("- No policies are declared on the Record, so this packet cannot show which policy text produced these decisions (COL-11 below).");
+      }
     } else {
       lines.push("- No Record `pep` binding was present; decisions are assessed as a foreign PEP replay.");
     }
@@ -112,6 +137,19 @@ export function buildNarrative(n: NarrativeInput): string {
   lines.push("| No file in the bundle was altered, added, or removed after signing (manifest hashes). | That the files are complete relative to what happened outside the PEP. |");
   lines.push(`| The decisions occurred in this order and were not edited after the fact (hash chain${n.traceOk ? ", intact" : ", BROKEN"}). | That every action the agent took passed through this PEP. |`);
   lines.push("| Each refusal cites a rule and the Record field that bound it. | That the policy is the right policy. |");
+  // The proves row follows COL-11's own result when it is present (pass 2), and the
+  // decisions themselves before it exists (pass 1): the row never outruns the control.
+  const col11 = n.results.find((r) => r.control.check === "policy-bound");
+  const declaredPolicies = n.record?.declaration.pep?.policies ?? [];
+  const boundByDecisions = n.decisions.length > 0 && (gatePolicy ? unboundToGate.length === 0 : declaredPolicies.length > 0 && (n.policies ?? []).filter((p) => p.role === "declared").length === declaredPolicies.length);
+  const policyBound = col11 ? col11.state === "satisfied" : boundByDecisions;
+  if (policyBound) {
+    lines.push("| Each verdict is bound, by hash, to the policy text staged in this packet under `policy/`. | That the verdicts were re-evaluated against that text at verification time; the control results are the build-time results, attributable to that text. |");
+  } else if ((n.policies ?? []).length > 0) {
+    lines.push("| (Policy text is staged under `policy/`, but not every verdict is bound to it; COL-11 reads not-satisfied.) | Which policy text produced the unbound verdicts. |");
+  } else {
+    lines.push("| (No policy text is staged in this packet; COL-11 reads not-satisfied.) | Which policy text produced these verdicts. |");
+  }
   lines.push("| Every cited evidence item exists in the store with the stated hash. | That the evidence is sufficient or that the checks are the right checks. |");
   lines.push("| The catalog checks ran deterministically over this evidence. | Correctness of any human or model judgment about the agent. |");
   lines.push("");

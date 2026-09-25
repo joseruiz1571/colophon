@@ -10,11 +10,11 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { verifyPhaseControls, type ControlResult } from "../catalog/checks.ts";
+import { policySetHash, verifyPhaseControls, type ControlResult } from "../catalog/checks.ts";
 import { EvidenceStore } from "../evidence/store.ts";
 import { buildAssessmentResults, validateOscal } from "../report/oscal.ts";
 import { readTrace, verifyTrace } from "../trace/trace.ts";
-import { loadRecord, verifyRecordHashes } from "../schema/record.ts";
+import { loadRecord, verifyRecordHashes, type ColophonRecord } from "../schema/record.ts";
 import { checkManifest, hashFile, listFiles, MANIFEST, SIGNATURE, type Manifest } from "./manifest.ts";
 import { SignError, verifyBlob } from "./sign.ts";
 
@@ -141,6 +141,7 @@ export function verifyBundle(o: VerifyBundleOptions): VerifyOutcome {
   // 4. bundled records: hashes, signature (with the presented key/identity), and the trace's record_sha256 binding
   const recordsDir = join(o.dir, "records");
   const recordHashes = new Set<string>();
+  const verifiedRecords: { file: string; rec: ColophonRecord }[] = [];
   if (existsSync(recordsDir)) {
     for (const f of listFiles(recordsDir).filter((p) => p.endsWith(".record.json"))) {
       const rp = join(recordsDir, f);
@@ -160,6 +161,7 @@ export function verifyBundle(o: VerifyBundleOptions): VerifyOutcome {
         else if (o.certIdentityRegexp && o.oidcIssuer) verifyBlob({ blob: rp, bundle: rsig, certIdentityRegexp: o.certIdentityRegexp, oidcIssuer: o.oidcIssuer });
         else throw new SignError("no verification material for the record signature");
         recordHashes.add(rec.canonical_sha256);
+        verifiedRecords.push({ file: f, rec });
         lines.push(`record: ${f} ok (hashes recompute, signature verifies)`);
       } catch (e) {
         failures.push(`record: ${f}: ${(e as Error).message}`);
@@ -181,6 +183,49 @@ export function verifyBundle(o: VerifyBundleOptions): VerifyOutcome {
       if (unbound.length > 0) failures.push(`trace: ${f}: ${unbound.length} decisions carry record_sha256 ${unbound[0]!.record_sha256} which is not a verified bundled record`);
       else lines.push(`trace: ${f} ok (${tv.lines} decisions, chain intact${tv.sealed ? ", head commitment matches" : ", NO head commitment"}${bound.length ? `, bound to verified record` : ""})`);
     }
+  }
+
+  // 5b. policy binding: every policy_sha256 a decision carries, and every
+  //     policy a bundled Record declares, must be a file under policy/ with
+  //     that exact hash. Reported on its own line so a swapped policy fails on
+  //     the binding, not only on the manifest.
+  const policyDir = join(o.dir, "policy");
+  const staged = new Map<string, string>();
+  if (existsSync(policyDir)) for (const f of listFiles(policyDir)) staged.set(hashFile(join(policyDir, f)).sha256, `policy/${f}`);
+  if (existsSync(traceDir)) {
+    for (const f of listFiles(traceDir).filter((p) => p.endsWith(".jsonl"))) {
+      let decisions;
+      try {
+        decisions = readTrace(join(traceDir, f));
+      } catch {
+        continue; // already reported by the trace check above
+      }
+      const carried = [...new Set(decisions.map((d) => d.policy_sha256).filter((h): h is string => typeof h === "string"))];
+      if (carried.length === 0) {
+        // Colophon decided these and nothing names the policy: said out loud, never silent (COL-11 in the AR carries the finding).
+        const colophonPep = decisions.some((d) => d.source === "colophon-gate" || d.source === "colophon-hook");
+        if (colophonPep) lines.push(`policy: ${f}: no policy binding carried (${decisions.length} decisions without policy_sha256; see COL-11 in the assessment results)`);
+        continue;
+      }
+      const missing = carried.filter((h) => !staged.has(h));
+      if (missing.length > 0) failures.push(`policy: ${f}: ${decisions.filter((d) => missing.includes(d.policy_sha256!)).length} decisions carry policy_sha256 ${missing[0]!} which matches no file under policy/ (binding broken${staged.size ? `; staged: ${[...staged.values()].join(", ")}` : "; nothing staged"})`);
+      else lines.push(`policy: ${f}: ${decisions.filter((d) => d.policy_sha256).length} decisions bound to ${carried.map((h) => `${staged.get(h)} (sha256 ${h.slice(0, 12)}…)`).join(", ")}`);
+    }
+  }
+  for (const { file, rec } of verifiedRecords) {
+    const declared = rec.declaration.pep?.policies ?? [];
+    if (declared.length === 0) continue;
+    const bad = declared.filter((p) => staged.get(p.sha256) === undefined);
+    if (bad.length > 0) {
+      failures.push(`policy: ${file} declares ${bad.map((p) => `${p.id} (sha256 ${p.sha256.slice(0, 12)}…)`).join(", ")} but no file under policy/ has that hash (binding broken)`);
+      continue;
+    }
+    const setHash = rec.declaration.pep?.policy_set_hash;
+    if (setHash && setHash !== policySetHash(declared.map((p) => p.sha256))) {
+      failures.push(`policy: ${file}: pep.policy_set_hash ${setHash.slice(0, 12)}… does not recompute from the declared policy hashes`);
+      continue;
+    }
+    lines.push(`policy: ${file}: ${declared.length} declared policies staged with matching hashes (${declared.map((p) => p.id).join(", ")})${setHash ? "; policy_set_hash recomputes" : ""}`);
   }
 
   // 6. verification AR outside the bundle
