@@ -108,6 +108,12 @@ export function stagePolicies(stage: string, source: string, decisions: Decision
     copyFileSync(src, join(policyDir, file));
     out.push({ role: "declared", id: p.id, kind: p.kind, path: `policy/${file}`, sha256: h });
   }
+  // Whatever the source, a decision that names a policy hash names a staged
+  // file, or the packet is refused: bundle verify would fail it anyway, and a
+  // packet must never be signed in a state its own verifier rejects.
+  const stagedHashes = new Set(out.map((s) => s.sha256));
+  const stray = decisions.find((d) => d.policy_sha256 && !stagedHashes.has(d.policy_sha256));
+  if (stray) throw new PolicyBindingError(`call ${stray.call_index ?? "?"} on ${stray.tool} carries policy_sha256 ${stray.policy_sha256!.slice(0, 12)}… which matches no policy this packet can stage (source ${source}${out.length ? `; staged: ${out.map((s) => s.path).join(", ")}` : "; nothing staged"})`);
   return out;
 }
 

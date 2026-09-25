@@ -151,7 +151,7 @@ describe("hook end to end", () => {
     expect(narrative).toMatch(/COL-05 .*\*\*satisfied\*\*/);
     expect(narrative).not.toMatch(/not a re-run of the foreign policy set/);
     expect(() => sealSession({ sessionId: "nope", traceDir, recordPath, pubkeyPath: pub, outRoot: join(dir, "out2"), signer: { mode: "key", key, pub, password: "test", signingConfig: offlineSigningConfig(join(dir, "keys")) } })).toThrow(/no trace for session/);
-  });
+  }, 30_000); // cosign sign + verify + OPA per control; sat at 5.01 s under load in a fresh-clone probe run (bun's default is 5 s)
 
   test("settings snippet is the documented hooks shape", () => {
     const s = settingsSnippet({ cli: "packages/cli/main.ts", recordPath, pubkeyPath: pub, traceDir }) as { hooks: { PreToolUse: { matcher: string; hooks: { type: string; command: string; timeout: number }[] }[] } };

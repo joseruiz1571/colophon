@@ -206,12 +206,27 @@ const checks: Record<string, Check> = {
     if (!ctx.record || declared.length === 0) {
       return { control, state: "not-satisfied", rationale: `${ctx.record ? `Record ${ctx.record.declaration.name} declares no pep.policies` : "No Record is bound"} for foreign PEP ${ctx.source}; the packet cannot show which policy text produced these decisions.`, cited };
     }
+    if (ctx.decisions.length === 0) {
+      return { control, state: "not-satisfied", rationale: `The session contains no decisions, so the binding was not exercised. It is reported not-satisfied rather than assumed.`, cited };
+    }
     const unstaged = declared.filter((p) => !staged.some((s) => s.role === "declared" && s.id === p.id && s.sha256 === p.sha256));
     if (unstaged.length > 0) {
       return { control, state: "not-satisfied", rationale: `${unstaged.length} of ${declared.length} declared policies are not staged with a matching hash: ${unstaged.map((p) => p.id).join(", ")}.`, cited };
     }
+    // A decision that carries policy_sha256 must name one of the staged files, whatever its source.
+    const stagedHashes = new Set(staged.map((s) => s.sha256));
+    const strayHash = ctx.decisions.find((d) => d.policy_sha256 && !stagedHashes.has(d.policy_sha256));
+    if (strayHash) {
+      return { control, state: "not-satisfied", rationale: `Call ${strayHash.call_index ?? "?"} on ${strayHash.tool} carries policy_sha256 ${strayHash.policy_sha256!.slice(0, 12)}…, which matches no policy staged in this packet.`, cited };
+    }
     const ids = new Set(declared.map((p) => p.id));
-    const undeclared = [...new Set(ctx.decisions.filter((d) => d.effect === "allow").flatMap((d) => d.rule_ids.filter((r) => !ids.has(r))))];
+    const allows = ctx.decisions.filter((d) => d.effect === "allow");
+    // An allow that cites no policy at all is an undeclared permit: nothing in the packet says what let it through.
+    const noPermit = allows.filter((d) => d.rule_ids.length === 0);
+    if (noPermit.length > 0) {
+      return { control, state: "not-satisfied", rationale: `${noPermit.length} allow decision(s) cite no policy id at all (e.g. call ${noPermit[0]!.call_index ?? "?"} on ${noPermit[0]!.tool}); the packet cannot say which permit let them through.`, cited };
+    }
+    const undeclared = [...new Set(allows.flatMap((d) => d.rule_ids.filter((r) => !ids.has(r))))];
     if (undeclared.length > 0) {
       return { control, state: "not-satisfied", rationale: `Allow decisions cite policy ids the Record does not declare: ${undeclared.join(", ")}. A permit the packet cannot show the text of is not a bound permit.`, cited };
     }
