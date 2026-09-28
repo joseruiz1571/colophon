@@ -185,3 +185,7 @@ Every claim, its probe, and whether the probe ran from a fresh clone: [`SPEC.md`
 ## License
 
 MIT.
+
+## Related
+
+Colophon is the custody/attestation layer for agent tool-use sessions in an evidence-and-assurance stack: [governance-card-stack](https://github.com/joseruiz1571/governance-card-stack) (OSCAL spine / Agent Card), [mltrack](https://github.com/joseruiz1571/mltrack) (inventory), and [mlassure](https://github.com/joseruiz1571/mlassure) (assurance with a citation invariant).
