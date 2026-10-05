@@ -14,15 +14,15 @@
  * attributes whose values come from the packet, so this file names no effect
  * (S11) and no control state.
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve, sep } from "node:path";
-import { hashFile, listFiles, MANIFEST, type Manifest } from "../bundle/manifest.ts";
+import { hashFile, MANIFEST, type Manifest } from "../bundle/manifest.ts";
 import { verifyBundle, type VerifyBundleOptions } from "../bundle/verify.ts";
 import { bindingReasons, type Decision } from "../normalize/decision.ts";
 import { primaryArg } from "../report/narrative.ts";
-import { loadRecord } from "../schema/record.ts";
-import { readTrace } from "../trace/trace.ts";
+import { sha256Hex } from "../schema/canonical.ts";
+import type { ColophonRecord } from "../schema/record.ts";
 
 export type ViewOptions = Omit<VerifyBundleOptions, "out">;
 
@@ -73,8 +73,8 @@ export function limitsFromNarrative(md: string): ViewPacket["limits"] {
 
 type Finding = { description?: string; props?: { name: string; value: string }[]; target?: { title?: string; description?: string; status?: { state?: string } } };
 
-function controlsFromAr(arPath: string): ViewControl[] {
-  const doc = JSON.parse(readFileSync(arPath, "utf8")) as { "assessment-results": { results: { findings?: Finding[] }[] } };
+function controlsFromAr(text: string): ViewControl[] {
+  const doc = JSON.parse(text) as { "assessment-results": { results: { findings?: Finding[] }[] } };
   const out: ViewControl[] = [];
   for (const result of doc["assessment-results"].results) {
     for (const f of result.findings ?? []) {
@@ -85,26 +85,31 @@ function controlsFromAr(arPath: string): ViewControl[] {
   return out;
 }
 
-function readPacket(dir: string): ViewPacket {
-  const manifest = JSON.parse(readFileSync(join(dir, MANIFEST), "utf8")) as Manifest;
-  const sessionPath = join(dir, "session.json");
-  const session = (existsSync(sessionPath) ? JSON.parse(readFileSync(sessionPath, "utf8")) : {}) as { source?: string; session_id?: string; task?: string };
-  const records: ViewRecord[] = [];
-  const recordsDir = join(dir, "records");
-  if (existsSync(recordsDir)) {
-    for (const f of listFiles(recordsDir).filter((p) => p.endsWith(".record.json"))) {
-      const r = loadRecord(join(recordsDir, f));
-      const d = r.declaration;
-      records.push({ file: `records/${f}`, name: d.name, owner: d.owner, riskTier: d.risk_tier, autonomy: d.autonomy_level, reviewDue: d.review_due, tools: d.tools.map((t) => t.name), sha256: r.canonical_sha256 });
-    }
-  }
-  const policies: ViewPacket["policies"] = [];
-  const policyDir = join(dir, "policy");
-  if (existsSync(policyDir)) for (const f of listFiles(policyDir)) policies.push({ path: `policy/${f}`, sha256: hashFile(join(policyDir, f)).sha256 });
-  const traces: ViewPacket["traces"] = [];
-  const traceDir = join(dir, "trace");
-  if (existsSync(traceDir)) for (const f of listFiles(traceDir).filter((p) => p.endsWith(".jsonl"))) traces.push({ file: `trace/${f}`, decisions: readTrace(join(traceDir, f)) });
-  const narrativePath = join(dir, "report", "narrative.md");
+/**
+ * Reads the packet's content for display. Every file is read once and its
+ * bytes are checked against the manifest entry before use, so what the page
+ * shows is what the manifest hashes, not whatever sits at the path after the
+ * verifier has finished. `manifestSha256` is the manifest's hash taken before
+ * verification; a manifest that changed since then is refused.
+ */
+export function readPacket(dir: string, manifestSha256: string): ViewPacket {
+  const manifestBytes = readFileSync(join(dir, MANIFEST));
+  if (sha256Hex(manifestBytes) !== manifestSha256) throw new Error(`${MANIFEST} changed while it was being verified`);
+  const manifest = JSON.parse(manifestBytes.toString("utf8")) as Manifest;
+  const listed = new Map(manifest.files.map((f) => [f.path, f.sha256]));
+  const read = (rel: string): string => {
+    const bytes = readFileSync(join(dir, rel));
+    if (sha256Hex(bytes) !== listed.get(rel)) throw new Error(`${rel} does not match its manifest entry`);
+    return bytes.toString("utf8");
+  };
+  const under = (prefix: string, suffix = ""): string[] => [...listed.keys()].filter((p) => p.startsWith(prefix) && p.endsWith(suffix)).sort();
+  const session = (listed.has("session.json") ? JSON.parse(read("session.json")) : {}) as { source?: string; session_id?: string; task?: string };
+  const records: ViewRecord[] = under("records/", ".record.json").map((f) => {
+    const r = JSON.parse(read(f)) as ColophonRecord;
+    const d = r.declaration;
+    return { file: f, name: d.name, owner: d.owner, riskTier: d.risk_tier, autonomy: d.autonomy_level, reviewDue: d.review_due, tools: d.tools.map((t) => t.name), sha256: r.canonical_sha256 };
+  });
+  const traces: ViewPacket["traces"] = under("trace/", ".jsonl").map((f) => ({ file: f, decisions: read(f).split("\n").filter((l) => l.trim().length > 0).map((l) => JSON.parse(l) as Decision) }));
   return {
     source: session.source ?? "",
     sessionId: session.session_id ?? "",
@@ -112,33 +117,44 @@ function readPacket(dir: string): ViewPacket {
     rootSha256: manifest.root_sha256,
     files: manifest.files.length,
     records,
-    policies,
+    policies: under("policy/").map((f) => ({ path: f, sha256: listed.get(f)! })),
     traces,
-    controls: controlsFromAr(join(dir, "report", "assessment-results.json")),
-    limits: limitsFromNarrative(existsSync(narrativePath) ? readFileSync(narrativePath, "utf8") : ""),
+    controls: controlsFromAr(read("report/assessment-results.json")),
+    limits: limitsFromNarrative(listed.has("report/narrative.md") ? read("report/narrative.md") : ""),
   };
 }
 
 export function buildViewModel(o: ViewOptions): ViewModel {
+  // The verifier is given absolute paths, so its lines name the bundle and key one way however the command was typed.
   const abs = resolve(o.dir);
+  const key = o.pubkey ? resolve(o.pubkey) : undefined;
   const bundleName = join(basename(dirname(abs)), basename(abs));
-  const keyName = o.pubkey ? basename(o.pubkey) : "";
-  // The page reads the same on every machine: the bundle and key are named, never located.
-  const scrub = (s: string): string => {
-    let t = s;
-    for (const [from, to] of [[abs, bundleName], [o.dir, bundleName], ...(o.pubkey ? [[resolve(o.pubkey), keyName], [o.pubkey, keyName]] : []), [process.cwd() + sep, ""], [homedir(), "~"]] as [string, string][]) t = t.split(from).join(to);
-    return t;
-  };
-  const v = verifyBundle(o);
-  const keyNote = o.pubkey
-    ? existsSync(o.pubkey)
-      ? `public key ${keyName} (sha256 ${hashFile(o.pubkey).sha256})`
+  const keyName = key ? basename(key) : "";
+  // The page reads the same on every machine: the bundle and key are named, never located. Only whole absolute paths are replaced, longest first.
+  const swaps = ([[abs, bundleName], ...(key ? [[key, keyName]] : []), [process.cwd() + sep, ""], [homedir(), "~"]] as [string, string][]).sort((a, b) => b[0].length - a[0].length);
+  const scrub = (s: string): string => swaps.reduce((t, [from, to]) => t.split(from).join(to), s);
+  const manifestPath = join(abs, MANIFEST);
+  const manifestSha256 = existsSync(manifestPath) ? sha256Hex(readFileSync(manifestPath)) : "";
+  const v = verifyBundle({ ...o, dir: abs, pubkey: key });
+  const keyNote = key
+    ? existsSync(key)
+      ? `public key ${keyName} (sha256 ${hashFile(key).sha256})`
       : `public key ${keyName} (file not found)`
     : o.certIdentityRegexp && o.oidcIssuer
       ? `certificate identity ${o.certIdentityRegexp} issued by ${o.oidcIssuer}`
       : "no verification material";
-  const verifyCommand = o.pubkey ? `colophon bundle verify ${bundleName} --pubkey ${keyName}` : `colophon bundle verify ${bundleName} --certificate-identity-regexp <re> --oidc-issuer <url>`;
-  return { ok: v.ok, bundleName, keyNote, verifyCommand, lines: v.lines.map(scrub), failures: v.failures.map(scrub), packet: v.ok ? readPacket(abs) : null };
+  const verifyCommand = key ? `colophon bundle verify ${bundleName} --pubkey ${keyName}` : `colophon bundle verify ${bundleName} --certificate-identity-regexp <re> --oidc-issuer <url>`;
+  const failures = [...v.failures];
+  let packet: ViewPacket | null = null;
+  if (v.ok) {
+    // A packet that verified but cannot be read back as verified is a failure like any other: it gets the NOT VERIFIED page, not a stack trace.
+    try {
+      packet = readPacket(abs, manifestSha256);
+    } catch (e) {
+      failures.push(`view: ${(e as Error).message}`);
+    }
+  }
+  return { ok: failures.length === 0, bundleName, keyNote, verifyCommand, lines: v.lines.map(scrub), failures: failures.map(scrub), packet };
 }
 
 // ---------- rendering ----------
@@ -213,7 +229,7 @@ export function renderView(m: ViewModel): string {
   const facts = `<dl class="kv"><dt>Bundle</dt><dd><code>${esc(m.bundleName)}</code></dd>${p ? `<dt>Session</dt><dd><code>${esc(p.sessionId)}</code></dd><dt>Manifest root</dt><dd><span class="hash">sha256 ${esc(p.rootSha256)}</span></dd>` : ""}<dt>Checked with</dt><dd>${esc(m.keyNote)}</dd></dl>`;
   const failed = m.ok
     ? ""
-    : `<section><h2>What the verifier reported</h2><ul class="fail">${m.failures.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>${m.lines.length ? `<p class="note">Checks that did pass:</p><ul class="passed">${m.lines.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>` : ""}<p>A packet that does not verify is not evidence of anything. This page shows none of its decisions or findings.</p></section>`;
+    : `<section><h2>What the verifier reported</h2><ul class="fail">${m.failures.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>${m.lines.length ? `<p class="note">Other lines the verifier printed. They describe files this run could not vouch for:</p><ul class="passed">${m.lines.map((l) => `<li>${esc(l)}</li>`).join("")}</ul>` : ""}<p>A packet that does not verify is not evidence of anything. This page shows none of its decisions or findings.</p></section>`;
   const disclaimer = `<footer><p><b>This page is a rendering, not evidence.</b> Anyone can edit an HTML file. To check it, run the command below against your own copy of the bundle${p ? ` and compare the manifest root (${esc(short(p.rootSha256))})` : ""}.</p><pre>${esc(m.verifyCommand)}</pre><p class="note">Custody is provable. Judgment is not.</p></footer>`;
   return `<!doctype html>
 <html lang="en">
@@ -236,8 +252,18 @@ ${disclaimer}
 `;
 }
 
-/** True when `out` would land inside the bundle, which would add an unlisted file and break the manifest. */
+/** The real location a path will have: the nearest ancestor that exists, resolved through symlinks and the filesystem's own spelling, plus the part not yet created. */
+function realTarget(p: string): string {
+  let head = resolve(p);
+  const tail: string[] = [];
+  while (!existsSync(head) && dirname(head) !== head) {
+    tail.unshift(basename(head));
+    head = dirname(head);
+  }
+  return join(realpathSync.native(head), ...tail);
+}
+
+/** True when `out` would land inside the bundle, which would add an unlisted file and break the manifest. Compared by real location, so a symlink or a differently-cased spelling of the bundle does not get past it. */
 export function outInsideBundle(dir: string, out: string): boolean {
-  const d = resolve(dir) + sep;
-  return (resolve(out) + sep).startsWith(d);
+  return (realTarget(out) + sep).startsWith(realTarget(dir) + sep);
 }

@@ -7,7 +7,7 @@
  */
 import { describe, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { generateKeyPair, offlineSigningConfig, signBlobWithKey } from "../packages/bundle/sign.ts";
@@ -15,8 +15,9 @@ import { verifyBundle } from "../packages/bundle/verify.ts";
 import { recordSignaturePath } from "../packages/gate/server.ts";
 import { runHook, sealSession } from "../packages/hook/index.ts";
 import { buildRecord, loadDeclaration } from "../packages/schema/record.ts";
+import { sha256Hex } from "../packages/schema/canonical.ts";
 import { readTrace } from "../packages/trace/trace.ts";
-import { buildViewModel, esc, limitsFromNarrative, outInsideBundle, renderView, type ViewModel } from "../packages/view/index.ts";
+import { buildViewModel, esc, limitsFromNarrative, outInsideBundle, readPacket, renderView, type ViewModel } from "../packages/view/index.ts";
 
 const FIX = resolve(import.meta.dir, "../packages/fixtures");
 const CLI = resolve(import.meta.dir, "../packages/cli/main.ts");
@@ -135,6 +136,47 @@ describe("fails closed", () => {
     expect(outInsideBundle(bundle, join(bundle, "..", "view.html"))).toBe(false);
     expect(outInsideBundle(bundle, bundle + "-view.html")).toBe(false);
   });
+  test("a symlink to the bundle, a not-yet-created subdirectory, and a re-cased spelling are all still inside it", () => {
+    const run = (out: string) => spawnSync(process.execPath, [CLI, "view", bundle, "--pubkey", keys.pub, "--out", out], { encoding: "utf8" });
+    const link = join(mkdtempSync(join(tmpdir(), "colophon-view-l-")), "link");
+    symlinkSync(bundle, link);
+    expect(outInsideBundle(bundle, join(link, "x.html"))).toBe(true);
+    expect(run(join(link, "x.html")).status).toBe(1);
+    expect(existsSync(join(bundle, "x.html"))).toBe(false);
+    expect(outInsideBundle(bundle, join(bundle, "new", "deeper", "x.html"))).toBe(true);
+    expect(outInsideBundle(link, join(bundle, "x.html"))).toBe(true);
+    const recased = join(bundle, "..", "BUNDLE", "y.html");
+    if (existsSync(join(bundle, "..", "BUNDLE"))) {
+      // case-insensitive filesystem (macOS default): the re-cased path is the bundle
+      expect(outInsideBundle(bundle, recased)).toBe(true);
+      expect(run(recased).status).toBe(1);
+      expect(existsSync(join(bundle, "y.html"))).toBe(false);
+    }
+    expect(verifyBundle({ dir: bundle, pubkey: keys.pub }).ok).toBe(true);
+  });
+  test("a file swapped after verification is refused: content is read against the manifest, not the path", () => {
+    const copy = join(mkdtempSync(join(tmpdir(), "colophon-view-s-")), "bundle");
+    cpSync(bundle, copy, { recursive: true });
+    const before = sha256Hex(readFileSync(join(copy, "manifest.json")));
+    expect(readPacket(copy, before).traces[0]!.decisions.length).toBe(8);
+    // what a swap between verifyBundle and the read would look like, one file at a time
+    const t = join(copy, "trace", "cc-live-0001.jsonl");
+    writeFileSync(t, readFileSync(t, "utf8").replace('"effect":"deny"', '"effect":"allow"'));
+    expect(() => readPacket(copy, before)).toThrow("trace/cc-live-0001.jsonl does not match its manifest entry");
+    cpSync(bundle, copy, { recursive: true });
+    writeFileSync(join(copy, "report", "narrative.md"), "# rewritten\n");
+    expect(() => readPacket(copy, before)).toThrow("report/narrative.md does not match its manifest entry");
+    cpSync(bundle, copy, { recursive: true });
+    writeFileSync(join(copy, "manifest.json"), readFileSync(join(copy, "manifest.json"), "utf8") + " ");
+    expect(() => readPacket(copy, before)).toThrow("manifest.json changed while it was being verified");
+  });
+  test("the failure page lists the verifier's other lines without calling them passed", () => {
+    const m = buildViewModel({ dir: bundle, pubkey: join(dir, "missing.pub") });
+    const html = renderView(m);
+    expect(m.ok).toBe(false);
+    expect(html).not.toContain("did pass");
+    expect(html).toContain("could not vouch for");
+  });
 });
 
 describe("inert, self-contained, and the same on every machine", () => {
@@ -179,5 +221,26 @@ describe("inert, self-contained, and the same on every machine", () => {
     expect(page).not.toContain(tmpdir());
     expect(page).not.toContain(homedir());
     expect(model.bundleName).toBe(join(packet.name, "bundle"));
+  });
+  test("invoked as `.` from inside the bundle, or by a relative key path: same bytes, and no verifier line is rewritten", () => {
+    const run = (cwd: string, args: string[]) => spawnSync(process.execPath, [CLI, "view", ...args], { encoding: "utf8", cwd });
+    const out = join(dir, "dot.html");
+    expect(run(bundle, [".", "--pubkey", keys.pub, "--out", out]).status).toBe(0);
+    expect(readFileSync(out, "utf8")).toBe(page);
+    const out2 = join(dir, "rel.html");
+    expect(run(join(dir, "keys"), [bundle, "--pubkey", "cosign.pub", "--out", out2]).status).toBe(0);
+    expect(readFileSync(out2, "utf8")).toBe(page);
+    expect(page).toContain("manifest: ok (");
+    expect(page).toContain("verifies over manifest.json with cosign.pub)");
+  });
+  test("a bundle whose directory name is a word the verifier prints does not rewrite the verifier's lines", () => {
+    const odd = join(mkdtempSync(join(tmpdir(), "colophon-view-o-")), "ok");
+    cpSync(bundle, odd, { recursive: true });
+    const cwd = join(odd, "..");
+    const r = spawnSync(process.execPath, [CLI, "view", "ok", "--pubkey", keys.pub, "--out", join(cwd, "ok.html")], { encoding: "utf8", cwd });
+    expect(r.status).toBe(0);
+    const html = readFileSync(join(cwd, "ok.html"), "utf8");
+    expect(html).toContain("manifest: ok (");
+    expect(html).toContain(".record.json ok (hashes recompute, signature verifies)");
   });
 });
