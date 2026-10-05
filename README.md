@@ -41,7 +41,7 @@ bun install && bun run demo
 bun run colophon bundle verify out/demo/evidence-reader/bundle --pubkey out/demo/keys/cosign.pub
 ```
 
-The demo needs `bun`, `opa`, `cosign` (3.x), and `jq` on the path. It runs offline after install: two declared agents are gated through the MCP gate, a Claude Code session is gated through the PreToolUse hook (one process per call) and sealed, four foreign PEP fixtures (a Claude Code hook log, a CloudTrail export, an AgentCore/Dogwood AuthorizeAction RoE replay, and a live AgentCore Gateway APPLICATION_LOGS capture) are normalized, and seven packets are signed with a throwaway local key pair and verified. Alongside each packet it writes GRC Eng Club Finding JSON (same decisions, club-readable). It exits 1 if signing fails. It prints `SIGNATURE: <path>` only after `bundle verify` passed.
+The demo needs `bun`, `opa`, `cosign` (3.x), and `jq` on the path. It runs offline after install: two declared agents are gated through the MCP gate, a Claude Code session is gated through the PreToolUse hook (one process per call) and sealed, four foreign PEP fixtures (a Claude Code hook log, a CloudTrail export, an AgentCore/Dogwood AuthorizeAction RoE replay, and a live AgentCore Gateway APPLICATION_LOGS capture) are normalized, and seven packets are signed with a throwaway local key pair and verified. A readable `view.html` is written beside each packet. Alongside each packet it writes GRC Eng Club Finding JSON (same decisions, club-readable). It exits 1 if signing fails. It prints `SIGNATURE: <path>` only after `bundle verify` passed.
 
 Community AgentCore demo (fixture → sealed packet → verify), including the live APPLICATION_LOGS RoE capture:
 
@@ -121,6 +121,16 @@ bundle/
 ```
 
 `colophon bundle verify` walks manifest → signature → OSCAL rlinks → files → hashes → trace chains, and with `--out` writes a second OSCAL AR for the two verify-phase controls (manifest completeness, signature) outside the bundle, because a bundle cannot attest to its own signature.
+
+## Read a packet in a browser
+
+```
+bun packages/cli/main.ts view out/demo/claude-coder/bundle --pubkey out/demo/keys/cosign.pub --out out/claude-coder.html
+```
+
+`colophon view` runs the same verification as `bundle verify`, then writes one HTML file: the verdict, each link of the chain with the verifier's own line under it, the decisions, the control findings with what would falsify each, and the proves / does-not-prove table. `bun run demo` writes one as `view.html` beside every packet.
+
+The page is a rendering, not evidence. It shows only what the verifier printed and what the signed files say, and decides nothing itself. If the packet does not verify, the page says NOT VERIFIED, lists the failures, and shows none of the packet's content. It carries no script and loads nothing, so it can be mailed or attached; the bundle and the key are still what a reader checks. One page per packet is not a dashboard, and nothing here watches a running agent.
 
 ## Vocabulary
 

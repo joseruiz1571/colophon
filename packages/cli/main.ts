@@ -19,6 +19,7 @@ import { oscalVersionOf, validateOscal } from "../report/oscal.ts";
 import { buildRecord, loadDeclaration, loadRecord, verifyRecordHashes } from "../schema/record.ts";
 import { formatErrors, validateDeclaration } from "../schema/validate.ts";
 import { TraceWriter, readTrace, verifyTrace } from "../trace/trace.ts";
+import { buildViewModel, outInsideBundle, renderView } from "../view/index.ts";
 import YAML from "yaml";
 import { runDemo } from "./demo.ts";
 import { assessToDir } from "./packet.ts";
@@ -87,6 +88,7 @@ const USAGE = `colophon — signed session packets for AI agent tool use
   bundle create --from <stage> --out <dir>
   bundle sign <dir> --key <cosign.key> [--password <pw>] | --keyless
   bundle verify <dir> (--pubkey <pub> | --certificate-identity-regexp <re> --oidc-issuer <url>) [--out <dir>]
+  view <dir> (--pubkey <pub> | --certificate-identity-regexp <re> --oidc-issuer <url>) --out <file.html>
   demo [--out out/demo] [--keyless]
 `;
 
@@ -379,6 +381,18 @@ async function main(argv: string[]): Promise<number> {
     for (const f of r.failures) process.stderr.write(`FAIL ${f}\n`);
     out(r.ok ? `verified: ${dir}` : `NOT VERIFIED: ${dir} (${r.failures.length} failure${r.failures.length === 1 ? "" : "s"})`);
     return r.ok ? 0 : 1;
+  }
+
+  if (cmd === "view") {
+    const dir = sub ?? fail("view <dir> --pubkey <pub> --out <file.html>");
+    const file = str(flags, "out");
+    if (outInsideBundle(dir, file)) fail(`${file}: refusing to write inside the bundle; an unlisted file would break its manifest`);
+    const m = buildViewModel({ dir, pubkey: str(flags, "pubkey", false) || undefined, certIdentityRegexp: str(flags, "certificate-identity-regexp", false) || undefined, oidcIssuer: str(flags, "oidc-issuer", false) || undefined });
+    mkdirSync(resolve(file, ".."), { recursive: true });
+    await Bun.write(file, renderView(m));
+    for (const f of m.failures) process.stderr.write(`FAIL ${f}\n`);
+    out(m.ok ? `view: ${file} (verified: ${dir})` : `view: ${file} (NOT VERIFIED: ${dir}; the page shows the failures and none of the packet's content)`);
+    return m.ok ? 0 : 1;
   }
 
   if (cmd === "demo") {

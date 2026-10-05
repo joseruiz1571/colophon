@@ -1,8 +1,8 @@
 /**
  * bun run demo: declarations → signed records → two gated sessions through
- * the MCP gate → four foreign-adapter sessions → six signed, verified packets
- * plus GRC Eng Club Finding JSON beside each packet. Exits 1 on the first
- * failure. Prints SIGNATURE: only after verify passed.
+ * the MCP gate → four foreign-adapter sessions and one hook session → seven signed, verified packets
+ * plus GRC Eng Club Finding JSON and a readable view.html beside each packet.
+ * Exits 1 on the first failure. Prints SIGNATURE: only after verify passed.
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from "node:fs";
@@ -18,6 +18,7 @@ import { buildRecord, loadDeclaration, type ColophonRecord } from "../schema/rec
 import { TraceWriter } from "../trace/trace.ts";
 import { buildPacket, type PacketOutput, type Signer } from "./packet.ts";
 import { buildFindings, writeFindings } from "../export/finding/index.ts";
+import { buildViewModel, renderView } from "../view/index.ts";
 
 const FIXTURES = resolve(import.meta.dir, "../fixtures");
 export const DEMO_KEY_PASSWORD = "colophon-demo";
@@ -191,7 +192,16 @@ export async function runDemo(o: DemoOptions): Promise<PacketOutput[]> {
     log(`packet  agentcore-dogwood-live: ${drafts.length} APPLICATION_LOGS evaluations normalized (session ${n.sessionId}, sidecar metadata; no AWS SDK) → ${packets.at(-1)!.bundleDir.replace(outRoot + "/", "")}`);
   }
 
-  // 6. Summary
+  // 7. One readable page beside each packet (never inside it: an unlisted file would break the manifest)
+  for (const p of packets) {
+    const m = buildViewModel(signer.mode === "key" ? { dir: p.bundleDir, pubkey: signer.pub } : { dir: p.bundleDir, certIdentityRegexp: signer.certIdentityRegexp, oidcIssuer: signer.oidcIssuer });
+    if (!m.ok) throw new Error(`view: ${p.name} did not verify: ${m.failures[0]}`);
+    const page = join(p.bundleDir, "..", "view.html");
+    await Bun.write(page, renderView(m));
+    log(`view    ${p.name}: ${page.replace(outRoot + "/", "")}`);
+  }
+
+  // 8. Summary
   log("");
   log("| packet | decisions | allow | deny | escalate | deny rule ids | controls satisfied |");
   log("|---|---|---|---|---|---|---|");

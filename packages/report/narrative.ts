@@ -21,7 +21,8 @@ export type NarrativeInput = {
   policies?: StagedPolicy[];
 };
 
-function primaryArg(d: Decision): string {
+/** The one argument that names what a call touched, as `key=value`; shared with the packet page so both name a call the same way. */
+export function primaryArg(d: Decision): string {
   const a = d.args_redacted ?? {};
   for (const k of ["path", "to", "url", "repo", "scopes", "org", "file_path", "command", "action", "bucketName", "roleName"]) {
     if (a[k] !== undefined) return `${k}=${JSON.stringify(a[k])}`;
