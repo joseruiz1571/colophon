@@ -15,7 +15,9 @@ for (const line of spec.split("\n")) {
   const m = /^\| (S\d+|A\d+) \| (.+?) \| `/.exec(line);
   if (m) claims.set(m[1]!, m[2]!);
 }
-const PARTIAL: Record<string, string> = {};
+const PARTIAL: Record<string, string> = {
+  S59: "The probe passes: every cited requirement resolves at its stated level and every row names a file, section, probe, control or verifier line. The grades themselves are a draft written by the coding agent and not yet read by the operator; the checker cannot tell whether a grade is right (D35).",
+};
 const NOTES: Record<string, string> = {
   S37: "CI ran green on the first push: https://github.com/joseruiz1571/colophon/actions/runs/34505148818 (2026-09-10). The keyless demo signed four bundles against the public Sigstore instance and `bundle verify` passed with the pinned certificate identity and issuer; the fresh-clone probe suite passed in full inside CI (40 claims at the time; the count above is current). Actions are pinned to commit SHAs.",
   S32: "Fixture-only by design: interface + fixture reader, no SDK, no live client. A live provider is out of scope and is not claimed.",
@@ -25,6 +27,7 @@ const NOTES: Record<string, string> = {
   S40: "Phase 4 is captured APPLICATION_LOGS JSONL ingest, not a live CloudWatch collector. Session id is sidecar/CLI metadata — AgentCore Gateway logs do not carry it. ENFORCE + AWS_IAM named principal. No AWS SDK.",
   S49: "Statement files are the get-policy text with the account id masked and the IAM principal generalized (the D28 rule applied to policy text); the hash is over the redacted bytes and the narrative says so. Not claimed: byte identity with what AWS enforced, or a re-run of Cedar/Dogwood.",
   S50: "COL-11 reads not-satisfied on the claude-hook, aws-config, and AuthorizeAction-fixture packets by design: nothing binds their verdicts to a policy text, and the catalog says so rather than passing vacuously. Verify-time re-evaluation against the bundled policy is deferred (D33).",
+  S60: "Both canonical-form vectors, vendored byte-identical from the standard at commit 54a7bc6. The standard's fourteen evidence-token vectors are a different claim set and are not run (D35).",
   S44: "Exercised by piping the events fixture through the `hook` command one process per call, as Claude Code does; the stdin/stdout contract is from the Claude Code hooks reference (2026-09-16). Not yet exercised inside a live Claude Code session from the build machine, which cannot nest a `claude` process; docs/claude-code.md is the recipe. About half a second per call.",
 };
 const short = (s: string) => (s.length > 150 ? s.slice(0, 147) + "…" : s);
@@ -37,11 +40,11 @@ const done = rows.filter((r) => r.includes("| done |")).length;
 const partial = rows.filter((r) => r.includes("| partial |")).length;
 const out = `# STATUS
 
-Probe run: \`bun tests/probes.ts\` at HEAD \`${probes.head}\`, ${probes.ran_at}, from a fresh \`git clone\` into a temp directory with \`bun install --frozen-lockfile\`. Bun 1.4.0, OPA 1.19.1, Cosign v3.1.3, jq 1.8.2, gitleaks 8.30.1, macOS. Results file: \`out/probes.json\` (gitignored; regenerate with the command above). This file is generated from that run and committed afterwards, so the HEAD it cites is the commit immediately before the one that adds it; rerunning the probes at the STATUS commit itself is how a reader confirms nothing moved.
+Probe run: \`bun tests/probes.ts\` at HEAD \`${probes.head}\`, ${probes.ran_at}, from a fresh \`git clone\` into a temp directory with \`bun install --frozen-lockfile\`. Bun 1.4.4, OPA 1.22.4, Cosign v3.1.4, jq 1.7.1-apple, gitleaks 8.30.1, macOS (CI pins Bun 1.4.0, OPA 1.19.1, Cosign v3.1.3). Results file: \`out/probes.json\` (gitignored; regenerate with the command above). This file is generated from that run and committed afterwards, so the HEAD it cites is the commit immediately before the one that adds it; rerunning the probes at the STATUS commit itself is how a reader confirms nothing moved.
 
 A row is \`done\` only if its probe passed in that run. \`partial\` means the probe passed but the claim's full meaning was not exercised, with the reason stated. \`not-started\` means the probe failed or did not run.
 
-**${done} done · ${partial} partial · ${rows.length - done - partial} not-started** of ${rows.length} claims (S1–S${Math.max(...probes.results.map((r) => Number(/^S(\d+)$/.exec(r.id)?.[1] ?? 0)))}, A1–A3).
+**${done} done · ${partial} partial · ${rows.length - done - partial} not-started** of ${rows.length} claims (S1–S${Math.max(...probes.results.map((r) => Number(/^S(\d+)$/.exec(r.id)?.[1] ?? 0)))}, A1–A3). S58 is built but has no probe here until the first tagged release exists (SPEC F13, D35).
 
 Not claimed anywhere in this repository: a live CloudWatch/EventBridge collector, an OWASP contribution, in-toto co-authorship, any certification.
 
