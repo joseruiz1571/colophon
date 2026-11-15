@@ -57,9 +57,10 @@ colophon/
     export/      GRC Eng Club Finding v1 speaker (Decision stream → finding.schema.json; not a collector)
     view/        `colophon view`: one static, script-free HTML page per packet (verifier output + signed content only)
     cli/         `colophon` entry point
-    fixtures/    declarations, scenarios, gate inputs, hook events, aws, upstream tree
+    fixtures/    declarations, scenarios, gate inputs, hook events, aws, upstream tree, proof-of-control (vendored checklist + canonical vectors)
   tests/         unit tests + probes.ts (runs every probe below from a fresh clone)
-  .github/workflows/ci.yml
+  docs/proof-of-control.md   requirement-level crosswalk to the Proof-of-Control Standard (Tier 2, Self-Declared)
+  .github/workflows/ci.yml release.yml
 ```
 
 ## 4. Claims and probes
@@ -169,6 +170,20 @@ A page a person can read, made from a packet a stranger can verify. The page is 
 | S56 | Same bundle, same key, same bytes: relative, absolute, and `.`-from-inside-the-bundle invocations produce identical pages, and no page carries `$PWD` or `$HOME`. | `$CLI view $OUT/notifier/bundle … --out a.html; $CLI view "$PWD/$OUT/notifier/bundle" --pubkey "$PWD/$OUT/keys/cosign.pub" --out b.html; cmp a.html b.html; grep -lF "$PWD" out/probe/view/*.html \| wc -l; grep -lF "$HOME" out/probe/view/*.html \| wc -l` | identical; `0`; `0` |
 | S57 | `bun run demo` writes `view.html` beside each bundle and never inside one; each says Verified and equals what `$CLI view` produces for that bundle. | `ls $OUT/*/view.html \| wc -l; ls $OUT/*/bundle/view.html \| wc -l; grep -l '<b>Verified</b>' $OUT/*/view.html \| wc -l; cmp $OUT/<name>/view.html out/probe/view/<name>.html` | `7`; `0`; `7`; identical |
 
+### F13 · Proof-of-Control alignment (published packet, crosswalk, canonical agreement)
+
+Where the packet sits against the [Proof-of-Control Standard](https://github.com/LFDT-ProofOfControl/ov-poc-standard), read at commit `54a7bc6` (Working Draft v0.1). The files it reads from that commit are vendored, with their source and license, under `packages/fixtures/proof-of-control/`.
+
+S59 and S60 are probed like every other claim. S58 is built (`.github/workflows/release.yml`) but its probe is not yet in `tests/probes.ts` and it has no row in `STATUS.md`: it cannot pass before the first tagged release exists, and a probe that fails fails CI. It joins the suite in the first commit after that release, and S34's count moves from 62 to 63 there. It is also the one probe that needs the network (a public release asset and Sigstore's public trust root), an exception to §2 recorded in D35.
+
+Not claimed: conformance to the standard, the words "Proof-of-Control" for the packet (the standard reserves them for Tier 3 and 4), or verification of the standard's evidence-token vectors, which carry a different claim set from a Colophon Decision.
+
+| # | Claim | Probe | Pass |
+|---|---|---|---|
+| S58 | A tagged release publishes one packet a stranger can verify. On a `v*` tag, CI signs the evidence-reader packet keyless and attaches it to the GitHub release as `packet-evidence-reader.tar.gz`; with only `cosign` and that file, `cosign verify-blob` passes against the pinned workflow identity and issuer with the transparency-log entry verified (no `--insecure-ignore-tlog`), and `bundle verify` passes on the same bytes. | `rm -rf out/probe/pub && mkdir -p out/probe/pub && curl -sSfL https://github.com/joseruiz1571/colophon/releases/latest/download/packet-evidence-reader.tar.gz \| tar xz -C out/probe/pub && cosign verify-blob --bundle out/probe/pub/bundle/manifest.sigstore.json --certificate-identity-regexp '^https://github.com/joseruiz1571/colophon/\.github/workflows/' --certificate-oidc-issuer https://token.actions.githubusercontent.com out/probe/pub/bundle/manifest.json && $CLI bundle verify out/probe/pub/bundle --certificate-identity-regexp '^https://github.com/joseruiz1571/colophon/\.github/workflows/' --oidc-issuer https://token.actions.githubusercontent.com` | `Verified OK`; exit 0 |
+| S59 | `docs/proof-of-control.md` places the packet against the standard at the pinned commit. It claims Tier 2 and no higher; every requirement id it cites exists in the standard's checklist at that commit (ids vendored under `packages/fixtures/proof-of-control/` with their source); each cited requirement carries a state (met, partly met, not met) and the packet file or verifier line that shows it; and at least one requirement is stated as not met. | `bun tests/crosswalk.ts` | exit 0; `unresolved: 0`; `cited:` ≥ 10; `tier: 2`; `not-met:` ≥ 1 |
+| S60 | Colophon's RFC 8785 canonicalizer agrees with the standard's published canonical-form vectors: for both vectors vendored under `packages/fixtures/proof-of-control/vectors/canonical/`, `canonicalSha256` equals the `canonical_sha256` the standard's manifest states, including the vector whose keys sort differently by UTF-16 code unit and by code point. | `bun test tests/poc-canonical.test.ts 2>&1 \| tail -3; jq '.canonical \| length' packages/fixtures/proof-of-control/vectors/manifest.json` | 0 fail; `2` |
+
 ### F9 · Club Finding export
 
 | # | Claim | Probe | Pass |
@@ -180,7 +195,7 @@ A page a person can read, made from a packet a stranger can verify. The page is 
 | # | Claim | Probe | Pass |
 |---|---|---|---|
 | S33 | README states the one-sentence product, the design rule, a proves / does-not-prove table, exactly the two commands, and points at STATUS.md. | `grep -c 'Custody is provable. Judgment is not.' README.md; grep -c 'bun install && bun run demo' README.md; grep -c 'bundle verify' README.md; grep -c 'STATUS.md' README.md` | all ≥ 1 |
-| S34 | STATUS.md has one row per claim S1–S57 and A1–A3; every `done` row names the probe run and the session date. | `grep -cE '^\| (S[0-9]+\|A[0-9]+) ' STATUS.md` | `60` |
+| S34 | STATUS.md has one row per probed claim S1–S57, S59, S60 and A1–A3 (S58 joins after the first release, F13); every `done` row names the probe run and the session date. | `grep -cE '^\| (S[0-9]+\|A[0-9]+) ' STATUS.md` | `62` |
 | S35 | DECISIONS.md records only decisions made in this repo, each with a rationale; it contains no operator brief. | `grep -ci 'operator brief' DECISIONS.md; grep -c '^### ' DECISIONS.md` | `0`; ≥ 8 |
 | S36 | `bun test` passes and `bun run typecheck` exits 0. | `bun test 2>&1 \| tail -3; bun run typecheck` | 0 fail; exit 0 |
 | S37 | `.github/workflows/ci.yml` pins Bun and Cosign 3.x, runs `bun install --frozen-lockfile`, typecheck, `bun test`, `opa test`, `bun run demo`, `bun tests/probes.ts`, asserts a `*.sigstore.json` exists, and runs `bundle verify`; signing in CI is keyless with a pinned certificate identity and issuer. | `grep -E 'cosign-installer\|cosign-release\|bun-version\|frozen-lockfile\|opa test\|bun run demo\|probes.ts\|sigstore.json\|bundle verify\|certificate-identity' .github/workflows/ci.yml \| wc -l` | ≥ 9 |
