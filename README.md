@@ -170,6 +170,8 @@ How a Colophon trace line maps onto the IETF draft's decision receipt:
 | `issuer_id`, `key_thumbprint` | `manifest.sigstore.json` (Cosign, once per packet) |
 | `action_ref`, `sandbox_state`, `iteration_id` | no equivalent; `session_id` + `call_index` are the nearest |
 
+Against the [Proof-of-Control Standard](https://github.com/LFDT-ProofOfControl/ov-poc-standard), a Colophon packet is Tier 2 (Attestation), Self-Declared, and not Proof-of-Control: [`docs/proof-of-control.md`](docs/proof-of-control.md) grades it requirement by requirement and names what would change that.
+
 Where the field is ahead: per-receipt signing at decision time (Colophon signs once per packet; the trace is hash-chained but unsigned until sealed), an independent timestamp in the local path (only CI's Rekor entry today), DSSE/in-toto envelopes, and receiver-side attestation. Those are design questions, not claims.
 
 ## How this was built

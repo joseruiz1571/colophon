@@ -1,0 +1,88 @@
+# Colophon release. On a v* tag:
+#   typecheck → unit tests → OPA tests → keyless demo (Sigstore, ambient OIDC)
+#   → verify the evidence-reader packet twice: with `bundle verify`, and with
+#   cosign alone, the way a stranger would → attach the packet to the GitHub
+#   release as packet-evidence-reader.tar.gz (S58).
+# The packet is signed by this workflow's identity at this tag, and its
+# signature is entered in the public transparency log. Tools are pinned to
+# the versions ci.yml uses.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  id-token: write
+
+env:
+  BUN_VERSION: "1.4.0"
+  OPA_VERSION: "1.19.1"
+  COSIGN_VERSION: "v3.1.3"
+  CERT_IDENTITY_REGEXP: "^https://github.com/${{ github.repository }}/\\.github/workflows/release\\.yml@refs/tags/v.*$"
+  OIDC_ISSUER: "https://token.actions.githubusercontent.com"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - uses: open-policy-agent/setup-opa@b2b258e089860efaadaaf71bf6e3aecb4a3eeff1 # v2.4.0
+        with:
+          version: ${{ env.OPA_VERSION }}
+
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: ${{ env.COSIGN_VERSION }}
+
+      - name: Install (frozen lockfile)
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck and unit tests
+        run: |
+          bun run typecheck
+          bun test tests
+
+      - name: OPA policy tests
+        run: opa test packages/policy -v
+
+      - name: Demo (keyless, ambient OIDC)
+        env:
+          COLOPHON_CERT_IDENTITY_REGEXP: ${{ env.CERT_IDENTITY_REGEXP }}
+          COLOPHON_OIDC_ISSUER: ${{ env.OIDC_ISSUER }}
+        run: bun run demo --keyless --out out/keyless
+
+      - name: Verify the packet (bundle verify, pinned identity + issuer)
+        run: |
+          bun packages/cli/main.ts bundle verify out/keyless/evidence-reader/bundle \
+            --certificate-identity-regexp "$CERT_IDENTITY_REGEXP" \
+            --oidc-issuer "$OIDC_ISSUER"
+
+      - name: Pack the packet
+        run: tar czf packet-evidence-reader.tar.gz -C out/keyless/evidence-reader bundle
+
+      - name: Verify the packed file as a stranger would (cosign alone, transparency log checked)
+        run: |
+          set -e
+          mkdir -p out/stranger
+          tar xzf packet-evidence-reader.tar.gz -C out/stranger
+          cosign verify-blob \
+            --bundle out/stranger/bundle/manifest.sigstore.json \
+            --certificate-identity-regexp "$CERT_IDENTITY_REGEXP" \
+            --certificate-oidc-issuer "$OIDC_ISSUER" \
+            out/stranger/bundle/manifest.json
+
+      - name: Attach the packet to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -e
+          gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --title "$TAG" --generate-notes --verify-tag
+          gh release upload "$TAG" packet-evidence-reader.tar.gz --clobber
