@@ -19,7 +19,8 @@ import { argsSha256, redactArgs } from "../normalize/decision.ts";
 import { RECORD_POLICY, opaEval } from "../policy/opa.ts";
 import { loadRecord, verifyRecordHashes, type ColophonRecord } from "../schema/record.ts";
 import { TraceWriter } from "../trace/trace.ts";
-import { decide, policySha256, selfTest, type Verdict } from "./eval.ts";
+import { decideBound, selfTest } from "./eval.ts";
+import { canonicalPath } from "./paths.ts";
 
 export type GateOptions = {
   recordPath: string;
@@ -117,15 +118,20 @@ export async function runGate(opts: GateOptions): Promise<void> {
     const name = req.params.name;
     const argsIn = (req.params.arguments ?? {}) as Record<string, unknown>;
     const context = { session_id: opts.sessionId, call_index: callIndex++ };
-    const verdict: Verdict = decide(record, { name, arguments: argsIn }, context);
-    // Hashed per call, never cached at startup: the Decision names the bytes
-    // that were on disk when this verdict was produced.
-    const policyHash = policySha256();
+    // The policy sees the real location of a path, not the string the agent sent
+    // (S61); the Decision and the upstream call keep the arguments as sent.
+    const rawPath = argsIn["path"];
+    const canonical = typeof rawPath === "string" ? canonicalPath(undefined, rawPath) : undefined;
+    const policyArgs = canonical !== undefined ? { ...argsIn, path: canonical } : argsIn;
+    // Verdict and policy hash come from one read of the policy file (S64), and
+    // the review date is checked by the policy on every call (S62).
+    const { verdict, policy_sha256: policyHash } = decideBound(record, { name, arguments: policyArgs }, context);
+    const resolvedNote = canonical !== undefined && canonical !== rawPath ? [{ field: "path.canonical", value: canonical, role: "context" as const }] : [];
     trace.append({
       source: "colophon-gate",
       effect: verdict.effect,
       rule_ids: verdict.rule_ids,
-      reasons: verdict.reasons,
+      reasons: [...verdict.reasons, ...resolvedNote],
       tool: name,
       args_sha256: argsSha256(argsIn),
       args_redacted: redactArgs(argsIn),
