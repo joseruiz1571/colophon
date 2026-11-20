@@ -69,8 +69,8 @@ State is one of **met**, **partly met**, **not met**. Level is the standard's ow
 | Req | L | State | Colophon |
 | --- | --- | --- | --- |
 | 4.1.1 | 1 | met | The grant is the signed Record: tools, scopes, sandbox paths, data classes and `review_due`. The gate refuses to start unless the Record's hashes recompute, its signature verifies and lint passes, and lint refuses a Record past `review_due` (`packages/policy/record.rego`). The Record is staged in the packet and every Decision carries its hash as `record_sha256`. |
-| 4.1.2 | 1 | met | Every call is decided by `packages/policy/gate.rego` and the Decision names the rule ids and the Record field that bound it, for allows as well as denies (control `COL-03`, probe S7). |
-| 4.1.3 | 3 | met | A deny or escalate is returned to the agent and never forwarded (`packages/gate/server.ts`); the Decision carries the tool, `args_sha256` and a redacted view of the arguments (probe S12). |
+| 4.1.2 | 1 | partly met | *Downgraded after a second-vendor read: the Record is bound and linted once, when the gate starts, and `decide` is not re-linted per call, so a process that crosses `review_due` keeps allowing calls (inferred from `packages/gate/server.ts`, not probed). COL-03 and S7 inspect denials only.* Every call is decided by `packages/policy/gate.rego` and the Decision names the rule ids and the Record field that bound it, for allows as well as denies (control `COL-03`, probe S7). |
+| 4.1.3 | 3 | partly met | *Downgraded after a second-vendor read: the sandbox check is a string-prefix test (`packages/policy/gate.rego`) and the hook normalizes paths lexically, so a symlink through a permitted path is an unprobed bypass; S12 runs one demo scenario against synthetic tools.* A deny or escalate is returned to the agent and never forwarded (`packages/gate/server.ts`); the Decision carries the tool, `args_sha256` and a redacted view of the arguments (probe S12). |
 | 4.1.4 | 2 | partly met | The argument digest is stored as `args_sha256`. Arguments are checked against the Record's scope, sandbox, data-class and destination fields, not validated against a registered tool schema. |
 | 4.1.5 | 2 | not met | Colophon issues and holds no credentials. Nothing in `packages/gate/server.ts` scopes the upstream's credentials per task. |
 | 4.1.6 | 2 | not met | An escalate becomes a Claude Code `ask` (`packages/hook/index.ts`). The human's answer, their identity and what they were shown are not recorded. |
@@ -92,7 +92,7 @@ State is one of **met**, **partly met**, **not met**. Level is the standard's ow
 | 7.1.2 | 3 | not met | One Decision per call, written at the verdict (`packages/trace/trace.ts`). No during or after record, and no signature per record: the packet is signed once. |
 | 7.1.3 | 3 | partly met | The gate appends the Decision before it forwards the call (`packages/gate/server.ts`). The append is a synchronous write, not a durable one: nothing forces it to disk first. |
 | 7.1.4 | 3 | not met | No attested environment, bound capability or attested egress. The gate forwards over an ordinary pipe (`packages/gate/server.ts`). |
-| 7.1.5 | 1 | met | Tier 2 is claimed, and the proves / does-not-prove table in `README.md` states that the packet does not prove every action passed through the enforcement point. |
+| 7.1.5 | 1 | partly met | *Downgraded after a second-vendor read: the generated findings (`packages/catalog/checks.ts`) and the README call allowed Decisions "executed calls", but the Decision is written before the forward and no result is appended, so the packet does not show a call executed. The wording needs fixing before this is met.* Tier 2 is claimed, and the proves / does-not-prove table in `README.md` states that the packet does not prove every action passed through the enforcement point. |
 
 ### C7.2 Contemporaneous
 
@@ -115,7 +115,7 @@ State is one of **met**, **partly met**, **not met**. Level is the standard's ow
 
 | Req | L | State | Colophon |
 | --- | --- | --- | --- |
-| 7.4.1 | 1 | met | §2.2 of this document, reconciled against §2.1. |
+| 7.4.1 | 1 | partly met | *Downgraded after a second-vendor read: PC-6 depends on the log's clock, which §2.2 does not list, and PC-3's dependence on the signature is not carried in §2.2.* §2.2 of this document, reconciled against §2.1. |
 | 7.5.1 | 1 | met | Every Decision field is an identifier, a digest, a timestamp or a verdict with its rule ids (`packages/schema/decision.schema.json`). The report in the packet states which deterministic checks ran; it asserts nothing about correctness. |
 | 7.5.2 | 1 | partly met | `README.md` and the narrative in every packet say what is and is not proven. There is no documented legal or compliance claims review; single maintainer. |
 
@@ -134,7 +134,7 @@ State is one of **met**, **partly met**, **not met**. Level is the standard's ow
 
 | Req | L | State | Colophon |
 | --- | --- | --- | --- |
-| 7.7.1 | 2 | met | `packages/schema/decision.schema.json` covers every Decision field, and `trace verify` validates every line against it (verifier line `schema: ok`). |
+| 7.7.1 | 2 | partly met | *Downgraded after a second-vendor read: Decisions are schema-validated, but the manifest and trace head are read with `JSON.parse` and a type cast, not a runtime schema.* `packages/schema/decision.schema.json` covers every Decision field, and `trace verify` validates every line against it (verifier line `schema: ok`). |
 | 7.7.2 | 2 | partly met | Digests are over the RFC 8785 form (`packages/schema/canonical.ts`), and the schema states what `this_sha256` covers. The manifest signature covers the manifest bytes as written; the manifest document has no canonical form of its own. Colophon's canonicalizer agrees with the standard's two canonical-form vectors (`tests/poc-canonical.test.ts`, S60). |
 | 7.7.3 | 2 | not met | The algorithm is named in the field name (`args_sha256`), not carried with the value, and the verifier has no rule for a digest under another algorithm. The schema does reject uppercase hex. |
 | 7.7.4 | 3 | partly met | Tamper cases are probed (S14, S28) and the standard's canonical vectors pass (S60). Colophon publishes no positive and negative vector set of its own. |
@@ -145,7 +145,7 @@ State is one of **met**, **partly met**, **not met**. Level is the standard's ow
 | Req | L | State | Colophon |
 | --- | --- | --- | --- |
 | 8.1.1 | 1 | met | §2.1 assigns a Tier to every claim. |
-| 8.1.2 | 1 | met | §2.1 names the trusted parties per claim; each Tier is consistent with them. |
+| 8.1.2 | 1 | partly met | *Downgraded after a second-vendor read: PC-1 names SHA-256 and the verifier but not the public key or identity a verifier must also trust, and PC-2 does not say how that key is authenticated.* §2.1 names the trusted parties per claim; each Tier is consistent with them. |
 | 8.1.3 | 1 | met | Operator-signed claims are registered at Tier 2 or below (§2.1). |
 | 8.1.4 | 1 | partly met | The words are used only as analysis or non-claim (§1). The documented claims review the requirement also asks for does not exist (see 7.5.2). |
 | 8.2.1 | 1 | met | §2.1 maps each claim to one mechanism and the fact it evidences; no mechanism is offered for a domain. |
@@ -157,12 +157,12 @@ State is one of **met**, **partly met**, **not met**. Level is the standard's ow
 | --- | --- | --- | --- |
 | 10.1.1 | 1 | met | Self-Declared, stated at the top of this document and in `SPEC.md` (F13). |
 | 10.1.2 | 1 | met | No domains claimed (§1). |
-| 10.1.3 | 1 | met | Each claim in §2.1 names its evidence file in the packet. |
+| 10.1.3 | 1 | partly met | *Downgraded after a second-vendor read: §3 asserts authorization, non-forwarding and startup-enforcement facts that §2.1 does not register, and the self-test stream in the packet is not named as evidence.* Each claim in §2.1 names its evidence file in the packet. |
 | 10.1.4 | 1 | partly met | System, claims, mechanisms, Tiers and the disclosure are in §1 and §2. Per-claim evidence properties are not tabulated. |
 | 10.1.5 | 1 | met | Working Draft v0.1 at commit `54a7bc6`; 2026-11-15. |
 | 10.1.6 | 1 | met | The §1 boundary table, with reasons for each exclusion. |
 | 10.1.7 | 2 | not met | This statement is prose (`docs/proof-of-control.md`). The packet is machine-readable; the statement is not. |
-| 10.2.1 | 1 | met | §2.2, one line per mechanism in §2.1. |
+| 10.2.1 | 1 | partly met | *Downgraded after a second-vendor read: §2.2's "Applies to" column does not carry inherited assumptions per claim (PC-2's signer-key authentication, PC-3's signature dependency, PC-6's clock).* §2.2, one line per mechanism in §2.1. |
 | 10.2.2 | 2 | met | Each line in §2.2 carries a category from the draft set. |
 
 ---
