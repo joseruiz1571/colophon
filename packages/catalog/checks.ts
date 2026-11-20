@@ -149,7 +149,7 @@ const checks: Record<string, Check> = {
     const foreign = !COLOPHON_PEP_SOURCES.has(ctx.source);
     const outside: string[] = [];
     for (const d of allowed) {
-      const v = decide(ctx.record, { name: declaredName(d.tool), arguments: d.args_redacted ?? {} }, { session_id: d.session_id ?? "reeval", call_index: d.call_index ?? 0 });
+      const v = decide(ctx.record, { name: declaredName(d.tool), arguments: d.args_redacted ?? {} }, { session_id: d.session_id ?? "reeval", call_index: d.call_index ?? 0, as_of: d.ts });
       if (v.effect !== "allow") outside.push(`${d.tool}#${d.call_index ?? "?"} → ${v.rule_ids.join(",")}`);
     }
     const scope = foreign

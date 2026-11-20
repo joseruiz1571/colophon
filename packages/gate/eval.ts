@@ -4,7 +4,9 @@
  * wrong the result is a deny with COL-GATE-OPA-ERROR: this is the one place
  * TypeScript names an effect, and it only ever names deny.
  */
-import { readFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { GATE_POLICY, OpaError, opaEval } from "../policy/opa.ts";
 import { sha256Hex } from "../schema/canonical.ts";
 import type { ColophonRecord } from "../schema/record.ts";
@@ -12,7 +14,8 @@ import type { Effect, Reason } from "../normalize/decision.ts";
 
 export type Verdict = { effect: Effect; rule_ids: string[]; reasons: Reason[] };
 export type Call = { name: string; arguments: Record<string, unknown> };
-export type CallContext = { session_id: string; call_index: number };
+/** `as_of` (RFC 3339) makes a re-evaluation of a recorded Decision ask the review-date question at that Decision's time; a live call omits it. */
+export type CallContext = { session_id: string; call_index: number; as_of?: string };
 
 const EFFECTS = new Set<string>(["allow", "deny", "escalate"]);
 
@@ -61,6 +64,45 @@ export function decide(record: ColophonRecord | null, call: Call, context: CallC
     if (!quiet) process.stderr.write(`[gate] policy evaluation failed, denying: ${message.split("\n")[0]}\n`);
     return failClosedDeny(message);
   }
+}
+
+let snapshotDir: string | undefined;
+
+/** A private copy of exactly the policy bytes that were hashed, named by their hash, so OPA evaluates what was hashed and nothing else (S64). */
+function snapshotPolicy(bytes: Buffer, sha: string): string {
+  if (!snapshotDir) {
+    snapshotDir = mkdtempSync(join(tmpdir(), "colophon-policy-"));
+    const dir = snapshotDir;
+    process.on("exit", () => {
+      try {
+        rmSync(dir, { recursive: true, force: true });
+      } catch {
+        // best effort; the directory is private and holds only policy text
+      }
+    });
+  }
+  const path = join(snapshotDir, `${sha}.rego`);
+  if (!existsSync(path)) writeFileSync(path, bytes, { mode: 0o600 });
+  return path;
+}
+
+export type Decided = { verdict: Verdict; policy_sha256: string | undefined };
+
+/**
+ * Decide and name the policy in one read. The policy file is read once; the
+ * hash is of those bytes and OPA evaluates a copy of those bytes, so a file
+ * edited while the enforcement point runs cannot credit a verdict to a hash of
+ * different text. An unreadable policy takes the fail-closed path with no hash.
+ */
+export function decideBound(record: ColophonRecord | null, call: Call, context: CallContext, policyPath: string = gatePolicyPath(), quiet = false): Decided {
+  let bytes: Buffer;
+  try {
+    bytes = readFileSync(policyPath);
+  } catch {
+    return { verdict: decide(record, call, context, policyPath, quiet), policy_sha256: undefined };
+  }
+  const sha = sha256Hex(bytes);
+  return { verdict: decide(record, call, context, snapshotPolicy(bytes, sha), quiet), policy_sha256: sha };
 }
 
 /**

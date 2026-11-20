@@ -178,3 +178,17 @@ destination_allowed(dest) if {
 	some pattern in tool.destinations
 	glob.match(pattern, null, dest)
 }
+
+# Review date, checked on every call. A long-running enforcement point must not
+# outlive the Record's review_due: the startup lint alone is not enough (S62).
+# `context.as_of` lets a re-evaluation of a recorded Decision ask the question at
+# the time of that Decision; a live call carries none and uses the clock.
+denies contains {"rule_id": "COL-GATE-STALE", "reason": {"field": "declaration.review_due", "value": decl.review_due}} if {
+	regex.match(`^[0-9]{4}-[0-9]{2}-[0-9]{2}$`, decl.review_due)
+	time.parse_ns("2006-01-02", decl.review_due) < eval_time_ns
+}
+
+eval_time_ns := t if {
+	is_string(input.context.as_of)
+	t := time.parse_rfc3339_ns(input.context.as_of)
+} else := time.now_ns()

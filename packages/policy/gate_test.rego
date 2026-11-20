@@ -215,3 +215,36 @@ test_allow_mail_dotted_local_part if {
 test_allow_fetch_nested_path_with_dot if {
 	d("net.fetch", {"url": "https://api.acme.example/repos/file.json", "data_class": "public"}).effect == "allow"
 }
+
+# ---- review date, per call (S62) ----
+with_due(due) := object.union(record, {"declaration": object.union(record.declaration, {"review_due": due})})
+
+test_deny_stale_record_on_live_call if {
+	r := gate.decision with input as {"record": with_due("2020-01-01"), "call": {"name": "repo.list", "arguments": {"org": "acme", "data_class": "internal"}}, "context": ctx}
+	r.effect == "deny"
+	"COL-GATE-STALE" in r.rule_ids
+}
+
+test_allow_current_record_on_live_call if {
+	r := gate.decision with input as {"record": with_due("2999-01-01"), "call": {"name": "repo.list", "arguments": {"org": "acme", "data_class": "internal"}}, "context": ctx}
+	r.effect == "allow"
+}
+
+test_reevaluation_asks_at_the_time_of_the_decision if {
+	c := object.union(ctx, {"as_of": "2019-12-31T00:00:00Z"})
+	r := gate.decision with input as {"record": with_due("2020-01-01"), "call": {"name": "repo.list", "arguments": {"org": "acme", "data_class": "internal"}}, "context": c}
+	r.effect == "allow"
+}
+
+test_reevaluation_after_the_date_is_stale if {
+	c := object.union(ctx, {"as_of": "2020-01-02T00:00:00Z"})
+	r := gate.decision with input as {"record": with_due("2020-01-01"), "call": {"name": "repo.list", "arguments": {"org": "acme", "data_class": "internal"}}, "context": c}
+	r.effect == "deny"
+	"COL-GATE-STALE" in r.rule_ids
+}
+
+test_malformed_as_of_falls_back_to_the_clock if {
+	c := object.union(ctx, {"as_of": "not-a-time"})
+	r := gate.decision with input as {"record": with_due("2020-01-01"), "call": {"name": "repo.list", "arguments": {"org": "acme", "data_class": "internal"}}, "context": c}
+	"COL-GATE-STALE" in r.rule_ids
+}

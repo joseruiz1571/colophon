@@ -17,7 +17,8 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { buildPacket, type PacketOutput, type Signer } from "../cli/packet.ts";
-import { decide, failClosedDeny, policySha256, selfTest, type Verdict } from "../gate/eval.ts";
+import { decideBound, failClosedDeny, selfTest, type Verdict } from "../gate/eval.ts";
+import { canonicalPath } from "../gate/paths.ts";
 import { bindRecord, recordSignaturePath } from "../gate/server.ts";
 import { argsSha256, bindingReasons, redactArgs, type Effect, type Reason } from "../normalize/decision.ts";
 import { canonicalSha256 } from "../schema/canonical.ts";
@@ -78,15 +79,12 @@ export function declaredToolName(claudeTool: string): string {
  * A path inside `cwd` becomes cwd-relative (`src/index.ts`) so a Declaration's
  * sandbox can be written once and signed for any machine; a path outside stays
  * absolute, which no relative write_paths prefix admits. Resolved first, so
- * `src/../../etc` lands outside.
+ * `src/../../etc` lands outside, and symlinks are followed (dangling ones too),
+ * so a link inside the sandbox that points outside lands outside (S61).
  */
 export function portablePath(cwd: string | undefined, p: string): string {
   if (!cwd) return p;
-  const abs = resolve(cwd, p);
-  const rel = relative(cwd, abs);
-  if (rel === "") return ".";
-  if (rel.startsWith("..") || isAbsolute(rel)) return abs;
-  return rel;
+  return canonicalPath(cwd, p);
 }
 
 export type MappedCall = { name: string; arguments: Record<string, unknown>; context: Reason[] };
@@ -184,8 +182,7 @@ export function runHook(raw: string, o: HookRunOptions): HookRunResult {
     }
     const call = mapCall(event, record.declaration.defaults);
     const context = { session_id: sessionId, call_index: trace.length };
-    const verdict = decide(record, { name: call.name, arguments: call.arguments }, context, o.policyPath, true);
-    const policyHash = policySha256(o.policyPath);
+    const { verdict, policy_sha256: policyHash } = decideBound(record, { name: call.name, arguments: call.arguments }, context, o.policyPath, true);
     trace.append({
       source: SOURCE,
       effect: verdict.effect,
