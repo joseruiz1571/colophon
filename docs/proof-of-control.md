@@ -171,7 +171,7 @@ State is one of **met**, **partly met**, **not met**. Level is the standard's ow
 
 Nothing above moves Colophon past Tier 2, and four gaps are structural: key custody the operator cannot reach (7.3.2), a record at each of three points with its own signature (7.1.2), inclusion proofs (7.3.4), and a mediated effect channel (7.1.4). Two are small and local: an algorithm tag on digest values (7.7.3) and a parser that refuses duplicate keys (7.7.5).
 
-One thing a Tier 3 claim would need (C8.1.5) is built, and true from the first tagged release: a stranger can verify a published packet with no operator credentials. Each release carries one keyless-signed packet, `packet-evidence-reader.tar.gz` (`.github/workflows/release.yml`, S58). After unpacking it:
+One thing a Tier 3 claim would need (C8.1.5) is built and has been run on the first tagged release (v0.1.0, 2026-11-20): a stranger can verify a published packet with no operator credentials. Each release carries one keyless-signed packet, `packet-evidence-reader.tar.gz` (`.github/workflows/release.yml`, S58). After unpacking it:
 
 ```
 cosign verify-blob --bundle bundle/manifest.sigstore.json \
@@ -180,4 +180,4 @@ cosign verify-blob --bundle bundle/manifest.sigstore.json \
   bundle/manifest.json
 ```
 
-No release exists at the commit that adds this file, so that run has not happened yet.
+That run has happened. The v0.1.0 release (tag on `951047b`, workflow run succeeded) carries the packet; from a fresh download `cosign verify-blob` printed `Verified OK` against the pinned workflow identity, a wrong identity failed, and `bundle verify` passed on the same bytes (24 files, 9 decisions, chain intact, verdicts bound to the staged policy). S58 now re-runs that check on every probe run. Two limits: the check trusts Sigstore's public instance and GitHub's OIDC issuer (§2.2), and it reads the latest release, so it says nothing about an older one.
