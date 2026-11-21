@@ -174,7 +174,7 @@ A page a person can read, made from a packet a stranger can verify. The page is 
 
 Where the packet sits against the [Proof-of-Control Standard](https://github.com/LFDT-ProofOfControl/ov-poc-standard), read at commit `54a7bc6` (Working Draft v0.1). The files it reads from that commit are vendored, with their source and license, under `packages/fixtures/proof-of-control/`.
 
-S59 and S60 are probed like every other claim. S58 is built (`.github/workflows/release.yml`) but its probe is not yet in `tests/probes.ts` and it has no row in `STATUS.md`: it cannot pass before the first tagged release exists, and a probe that fails fails CI. It joins the suite in the first commit after that release, and S34's count moves from 66 to 67 there. It is also the one probe that needs the network (a public release asset and Sigstore's public trust root), an exception to §2 recorded in D35.
+S58, S59 and S60 are probed like every other claim. S58 joined the suite after the first tagged release (v0.1.0, 2026-11-20) existed, because a probe that fails fails CI. It is the one probe that needs the network (a public release asset and Sigstore's public trust root), an exception to §2 recorded in D35 and D37. It reads the latest release, so a future release that fails to verify fails the suite.
 
 Not claimed: conformance to the standard, the words "Proof-of-Control" for the packet (the standard reserves them for Tier 3 and 4), or verification of the standard's evidence-token vectors, which carry a different claim set from a Colophon Decision.
 
@@ -206,7 +206,7 @@ A read-only audit by a second vendor graded `docs/proof-of-control.md` against t
 | # | Claim | Probe | Pass |
 |---|---|---|---|
 | S33 | README states the one-sentence product, the design rule, a proves / does-not-prove table, exactly the two commands, and points at STATUS.md. | `grep -c 'Custody is provable. Judgment is not.' README.md; grep -c 'bun install && bun run demo' README.md; grep -c 'bundle verify' README.md; grep -c 'STATUS.md' README.md` | all ≥ 1 |
-| S34 | STATUS.md has one row per probed claim S1–S57, S59–S64 and A1–A3 (S58 joins after the first release, F13); every `done` row names the probe run and the session date. | `grep -cE '^\| (S[0-9]+\|A[0-9]+) ' STATUS.md` | `66` |
+| S34 | STATUS.md has one row per probed claim S1–S64 and A1–A3; every `done` row names the probe run and the session date. | `grep -cE '^\| (S[0-9]+\|A[0-9]+) ' STATUS.md` | `67` |
 | S35 | DECISIONS.md records only decisions made in this repo, each with a rationale; it contains no operator brief. | `grep -ci 'operator brief' DECISIONS.md; grep -c '^### ' DECISIONS.md` | `0`; ≥ 8 |
 | S36 | `bun test` passes and `bun run typecheck` exits 0. | `bun test 2>&1 \| tail -3; bun run typecheck` | 0 fail; exit 0 |
 | S37 | `.github/workflows/ci.yml` pins Bun and Cosign 3.x, runs `bun install --frozen-lockfile`, typecheck, `bun test`, `opa test`, `bun run demo`, `bun tests/probes.ts`, asserts a `*.sigstore.json` exists, and runs `bundle verify`; signing in CI is keyless with a pinned certificate identity and issuer. | `grep -E 'cosign-installer\|cosign-release\|bun-version\|frozen-lockfile\|opa test\|bun run demo\|probes.ts\|sigstore.json\|bundle verify\|certificate-identity' .github/workflows/ci.yml \| wc -l` | ≥ 9 |

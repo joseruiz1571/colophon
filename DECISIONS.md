@@ -122,3 +122,10 @@ The fixes remove each cause where it sits. Paths are resolved to their real loca
 Stated limits. A link swapped between the check and the tool's own open is not closed by any path check, and a tool that resolves paths unlike the filesystem is not covered. In the gate, an absolute path inside the working directory is now judged by its relative form, as the hook already did. `call_index` in the hook is read before the append, so two simultaneous hook processes can write the same index; the chain stays valid and the count of lines is right. The lock is advisory between Colophon processes only. The earlier statement in D35 that S34 moves from 62 to 63 at the first release is now 66 to 67.
 
 Author field says who typed (Claude Code); the decision to fix, rather than only document, was the operator's.
+
+### D37 · S58 joins the suite against the real v0.1.0 release, and it is the one probe that uses the network
+D35 reserved this: S58 could not pass before a tagged release existed, so it stayed out of `tests/probes.ts` and `STATUS.md` until `v0.1.0` (tag on `951047b`, 2026-11-20). The release workflow ran green and attached `packet-evidence-reader.tar.gz`; from a fresh download `cosign verify-blob` printed `Verified OK`, a wrong identity failed (so the pass is not a permissive check), and `bundle verify` passed on the same bytes. The probe now repeats that: it downloads the latest release asset, runs `cosign verify-blob` against the pinned workflow identity and issuer with the transparency-log check left on, then runs `bundle verify` on the same bytes. S34's count is 67.
+
+Stated limits. It reads the latest release, not the one at HEAD, so a future release that fails to verify fails the suite and an older release is not re-checked. It needs the network and Sigstore's public trust root, an exception to §2 that CI already satisfies. It does not exercise the signing side: that is the release workflow's own run, whose success is recorded on GitHub, not in this repository.
+
+Author field says who typed (Claude Code); the decision to add the probe once a release existed was the operator's.

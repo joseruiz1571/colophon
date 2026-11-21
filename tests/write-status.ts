@@ -19,6 +19,7 @@ const PARTIAL: Record<string, string> = {
   S59: "The probe passes: every cited requirement resolves at its stated level and every row names a file, section, probe, control or verifier line. The grades themselves are a draft written by the coding agent and not yet read by the operator; the checker cannot tell whether a grade is right (D35).",
 };
 const NOTES: Record<string, string> = {
+  S58: "Network, by exception (SPEC §2, D35, D37): downloads the latest release's packet, verifies it with `cosign verify-blob` alone against the pinned workflow identity and issuer, then runs `bundle verify` on the same bytes. First proven against v0.1.0 (tag on 951047b, 2026-11-20); a later release that fails to verify fails this probe.",
   S37: "CI ran green on the first push: https://github.com/joseruiz1571/colophon/actions/runs/34505148818 (2026-09-10). The keyless demo signed four bundles against the public Sigstore instance and `bundle verify` passed with the pinned certificate identity and issuer; the fresh-clone probe suite passed in full inside CI (40 claims at the time; the count above is current). Actions are pinned to commit SHAs.",
   S32: "Fixture-only by design: interface + fixture reader, no SDK, no live client. A live provider is out of scope and is not claimed.",
   S31: "Foreign PEP: three of eight assess-phase controls are not-satisfied because no Record is bound; this is the honest shape of \"their gate, your packet\".",
@@ -44,7 +45,7 @@ Probe run: \`bun tests/probes.ts\` at HEAD \`${probes.head}\`, ${probes.ran_at},
 
 A row is \`done\` only if its probe passed in that run. \`partial\` means the probe passed but the claim's full meaning was not exercised, with the reason stated. \`not-started\` means the probe failed or did not run.
 
-**${done} done · ${partial} partial · ${rows.length - done - partial} not-started** of ${rows.length} claims (S1–S${Math.max(...probes.results.map((r) => Number(/^S(\d+)$/.exec(r.id)?.[1] ?? 0)))}, A1–A3). S58 is built but has no probe here until the first tagged release exists (SPEC F13, D35).
+**${done} done · ${partial} partial · ${rows.length - done - partial} not-started** of ${rows.length} claims (S1–S${Math.max(...probes.results.map((r) => Number(/^S(\d+)$/.exec(r.id)?.[1] ?? 0)))}, A1–A3). S58 reads the public v0.1.0 release over the network, the one probe that does (SPEC F13, D35, D37).
 
 Not claimed anywhere in this repository: a live CloudWatch/EventBridge collector, an OWASP contribution, in-toto co-authorship, any certification.
 
