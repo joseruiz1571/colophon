@@ -1,6 +1,6 @@
 # Two outside cases: a leaked credential and a research design
 
-> **Status: draft, not yet read by the maintainer.** Written by a coding agent on 2026-11-22 against the code at the commit that adds this file. The replay in section 1 is probed (S65, S66). The readings of the two sources are the agent's, and a reading can be wrong. Nobody outside this repository has reviewed them.
+> **Status: read by the maintainer on 2026-11-22.** Written by a coding agent on 2026-11-22 against the code at the commit that adds this file. The replay in section 1 is probed (S65, S66). The maintainer read the readings of the two sources and asked for no changes. A reading can still be wrong, and nobody outside this repository has reviewed them.
 
 **Sources, as read on 2026-11-22:**
 

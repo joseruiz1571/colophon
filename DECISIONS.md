@@ -149,3 +149,10 @@ What the replay found. A Hugging Face token passed inline in a shell command was
 Stated limits. The pattern is still a list of known shapes, and a credential in an unlisted shape passes both redaction and COL-10; this fix removes one instance and not the class. A general remedy (commit the value of any assignment to a secret-named variable inside a string) would need COL-10 to tell a commitment from a survivor, which touches the single-pattern rule of D30, so it is left for the operator. The content rule and the PostToolUse record named in the document are not built. The paper's code repository was not read. S66 is `partial` in STATUS until the operator has read the document, as S59 was (D35, D38): the probe checks the replay and three sentences, and cannot tell whether a reading of either source is right.
 
 Author field says who typed (Claude Code); the request to weigh the idea and deliver the same day was the operator's, and everything about the shape of the delivery was the builder's.
+
+### D40 · S66 moves from partial to done on the operator's read
+S66 stayed `partial` because the readings of the two sources in `docs/outside-cases.md` were written by the coding agent, and the checker cannot tell whether a reading is right (D39). On 2026-11-22 the operator said he had read the document and asked for no changes. The status line at the top of the document now says so, and `tests/write-status.ts` no longer downgrades the claim.
+
+Stated limits. The operator's read is recorded on his word; nothing in this repository can probe it. The readings are still the project's own account of two outside sources: neither Together AI nor the paper's authors have seen them, and the paper's code repository was not read. A reading can still be wrong, and a correction is a normal change to the document.
+
+Author field says who typed (Claude Code); the read, and the decision to close the claim on it, were the operator's.
