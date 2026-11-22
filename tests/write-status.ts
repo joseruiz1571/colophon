@@ -15,10 +15,9 @@ for (const line of spec.split("\n")) {
   const m = /^\| (S\d+|A\d+) \| (.+?) \| `/.exec(line);
   if (m) claims.set(m[1]!, m[2]!);
 }
-const PARTIAL: Record<string, string> = {
-  S59: "The probe passes: every cited requirement resolves at its stated level and every row names a file, section, probe, control or verifier line. The grades themselves are a draft written by the coding agent and not yet read by the operator; the checker cannot tell whether a grade is right (D35).",
-};
+const PARTIAL: Record<string, string> = {};
 const NOTES: Record<string, string> = {
+  S59: "Every cited requirement resolves at its stated level and every row names a file, section, probe, control or verifier line. The grades were written by the coding agent; the operator read them on 2026-11-22 and asked for no changes (D38). The checker still cannot tell whether a grade is right (D35).",
   S58: "Network, by exception (SPEC §2, D35, D37): downloads the latest release's packet, verifies it with `cosign verify-blob` alone against the pinned workflow identity and issuer, then runs `bundle verify` on the same bytes. First proven against v0.1.0 (tag on 951047b, 2026-11-20); a later release that fails to verify fails this probe.",
   S37: "CI ran green on the first push: https://github.com/joseruiz1571/colophon/actions/runs/34505148818 (2026-09-10). The keyless demo signed four bundles against the public Sigstore instance and `bundle verify` passed with the pinned certificate identity and issuer; the fresh-clone probe suite passed in full inside CI (40 claims at the time; the count above is current). Actions are pinned to commit SHAs.",
   S32: "Fixture-only by design: interface + fixture reader, no SDK, no live client. A live provider is out of scope and is not claimed.",
