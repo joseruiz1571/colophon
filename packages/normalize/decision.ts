@@ -55,9 +55,12 @@ const SECRET_VALUE = /^(ghp_|gho_|github_pat_|sk-|xox[bpa]-|AKIA|-----BEGIN )/;
  * The one credential shape both redaction and control COL-10 use. Redaction
  * commits every match inside a string; COL-10 scans the sealed view for any
  * survivor. Sharing the pattern is what keeps "redacted" and "checked" the
- * same claim.
+ * same claim. It is a list of known shapes: a credential in a shape that is
+ * not listed passes both, which is how the Hugging Face shapes came to be
+ * added (S65, D39). The two Hugging Face prefixes need 30 or more characters
+ * after them so that `hf_hub_download` and its kind stay readable.
  */
-export const CREDENTIAL_PATTERN = /(ghp_[A-Za-z0-9]{10,}|gho_[A-Za-z0-9]{10,}|github_pat_[A-Za-z0-9_]{10,}|sk-[A-Za-z0-9]{10,}|xox[bpa]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/;
+export const CREDENTIAL_PATTERN = /(ghp_[A-Za-z0-9]{10,}|gho_[A-Za-z0-9]{10,}|github_pat_[A-Za-z0-9_]{10,}|sk-[A-Za-z0-9]{10,}|xox[bpa]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|hf_[A-Za-z0-9]{30,}|api_org_[A-Za-z0-9]{30,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/;
 const CREDENTIAL_PATTERN_G = new RegExp(CREDENTIAL_PATTERN.source, "g");
 /** Keys the policy reads. Never truncated, so re-evaluation sees exactly what the gate saw. */
 const POLICY_KEYS = new Set(["path", "to", "url", "scopes", "data_class", "repo", "org"]);

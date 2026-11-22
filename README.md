@@ -174,6 +174,8 @@ Against the [Proof-of-Control Standard](https://github.com/LFDT-ProofOfControl/o
 
 Where the field is ahead: per-receipt signing at decision time (Colophon signs once per packet; the trace is hash-chained but unsigned until sealed), an independent timestamp in the local path (only CI's Rekor entry today), DSSE/in-toto envelopes, and receiver-side attestation. Those are design questions, not claims.
 
+Two outside cases are read against the packet in [`docs/outside-cases.md`](docs/outside-cases.md): a published incident in which a coding agent committed a credential, and a research design with its own signed log of agent actions. The first line of that document says Colophon would not have stopped the leak.
+
 ## How this was built
 
 Spec-first, agent-built, operator-graded. `SPEC.md` was written before the code, with a shell probe per claim. Coding agents (Cursor) wrote most of the implementation against it; eight of the commits carry that author. The operator ran the fresh-clone probe suite as the grade, commissioned an independent second look that found real bugs (D18–D23), and recorded every judgment call in `DECISIONS.md` with who made it. A later round applied three outside evaluations (D28–D31). That is the Colophon method applied to Colophon: the author field says who typed, the decisions file says who decided, the probe says whether it is true.
