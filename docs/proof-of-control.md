@@ -1,6 +1,6 @@
 # Colophon and Proof-of-Control: a requirement-level crosswalk
 
-> **Status: draft for the maintainer's review.** Written by a coding agent against the code at the commit that adds this file; the grades are not the maintainer's until he has read them.
+> **Status: read by the maintainer on 2026-11-22.** Written by a coding agent against the code at the commit that adds this file. The maintainer read the grades and asked for no changes. A self-assessment is still a self-assessment: nobody outside this repository has reviewed these grades.
 
 **Standard:** LF Decentralized Trust / Advanced AI Society, *Proof-of-Control*, Working Draft v0.1, read at repository `LFDT-ProofOfControl/ov-poc-standard` commit `54a7bc6` (2026-10-29), 127 requirements. Requirement ids are checked against that commit's checklist, vendored in [`packages/fixtures/proof-of-control/`](../packages/fixtures/proof-of-control/SOURCE.md).
 **Subject:** the Colophon session packet, as specified in [`SPEC.md`](../SPEC.md), Colophon 0.1.0.

@@ -129,3 +129,10 @@ D35 reserved this: S58 could not pass before a tagged release existed, so it sta
 Stated limits. It reads the latest release, not the one at HEAD, so a future release that fails to verify fails the suite and an older release is not re-checked. It needs the network and Sigstore's public trust root, an exception to §2 that CI already satisfies. It does not exercise the signing side: that is the release workflow's own run, whose success is recorded on GitHub, not in this repository.
 
 Author field says who typed (Claude Code); the decision to add the probe once a release existed was the operator's.
+
+### D38 · S59 moves from partial to done on the operator's read
+S59 stayed `partial` because the grades in `docs/proof-of-control.md` were a draft written by the coding agent, and the checker cannot tell whether a grade is right (D35). On 2026-11-22 the operator said he had read the crosswalk and asked for no changes. The status line at the top of the document now says so, and `tests/write-status.ts` no longer downgrades the claim.
+
+Stated limits. The operator's read is recorded on his word; nothing in this repository can probe it. It is a self-assessment by the project's own maintainer, and no outside reader has reviewed the grades. A grade can still be wrong, and a correction is a normal change to the document.
+
+Author field says who typed (Claude Code); the read, and the decision to close the claim on it, were the operator's.
