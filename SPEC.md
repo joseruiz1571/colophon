@@ -60,6 +60,7 @@ colophon/
     fixtures/    declarations, scenarios, gate inputs, hook events, aws, upstream tree, proof-of-control (vendored checklist + canonical vectors)
   tests/         unit tests + probes.ts (runs every probe below from a fresh clone)
   docs/proof-of-control.md   requirement-level crosswalk to the Proof-of-Control Standard (Tier 2, Self-Declared)
+  docs/outside-cases.md      the packet read against a published incident and a research design (F15)
   .github/workflows/ci.yml release.yml
 ```
 
@@ -195,6 +196,17 @@ A read-only audit by a second vendor graded `docs/proof-of-control.md` against t
 | S63 | Concurrent writers cannot break a trace. Two writers opened before either appends both link correctly, and four simultaneous processes over repeated rounds all append, leave a chain that verifies and sealed, and leave no lock or temp file. | `bun test tests/audit-findings.test.ts -t S63 2>&1 \| tail -5` | 0 fail; ≥ 3 pass |
 | S64 | A Decision's `policy_sha256` names the bytes that decided it. The policy file is read once per call, hashed, and evaluated from a copy of those bytes; with the file swapped every millisecond no verdict carries the other version's hash, and an unreadable policy fails closed with no hash. | `bun test tests/audit-findings.test.ts -t S64 2>&1 \| tail -5` | 0 fail; ≥ 2 pass |
 
+### F15 · Two outside cases (a published incident and a research design)
+
+[`docs/outside-cases.md`](docs/outside-cases.md) reads the packet against two things published in November 2026: the Together AI incident disclosure of 2026-11-21, in which a coding agent committed a credential to a public repository, and the Agent Trust Infrastructure paper (arXiv:2611.23202v1), whose Accountability plane is a signed, hash-chained log of agent actions. The incident was replayed through the hook as a synthetic session. The replay found a redaction gap, which is fixed here (D39).
+
+Not claimed: that Colophon would have stopped the leak (the replay shows it would not), anything about what Together AI ran, or anything about the paper's code, which was not read. The readings in the document are the builder's until the maintainer has read them.
+
+| # | Claim | Probe | Pass |
+|---|---|---|---|
+| S65 | The credential pattern that redaction and COL-10 share covers Hugging Face tokens, in the two shapes gitleaks 8.30.1 detects (a user access token and an organization API token). One inside a Bash command is committed in place (`sha256:<hex>`), the command keeps its shape, and the literal reaches neither the trace nor the sealed packet; a sealed view that still carries one is refused before signing under COL-10. Ordinary identifiers that begin the same way (`hf_hub_download`) are untouched. Tokens are built at runtime. | `bun test tests/outside-cases.test.ts -t S65 2>&1 \| tail -5` | 0 fail; ≥ 3 pass |
+| S66 | The incident replay in `docs/outside-cases.md` is what the code does. A Claude Code session writes a file whose content holds a credential, commits, and pushes. The write inside the sandbox is allowed and its Decision carries the path and `claude.tool_input_sha256` (equal to the canonical hash of the tool input) and none of the content; the commit and the push each escalate under `COL-GATE-APPROVAL`; the sealed packet verifies, reports COL-03 not-satisfied (no refusal occurred) and COL-10 satisfied, and holds no credential literal. The document states that Colophon would not have stopped the leak and names both sources with the version read. | `bun test tests/outside-cases.test.ts -t S66 2>&1 \| tail -5; grep -c 'would not have stopped the leak' docs/outside-cases.md; grep -c '2611.23202v1' docs/outside-cases.md; grep -c 'Published 11/21/2026' docs/outside-cases.md` | 0 fail; ≥ 1 pass; each count ≥ 1 |
+
 ### F9 · Club Finding export
 
 | # | Claim | Probe | Pass |
@@ -206,7 +218,7 @@ A read-only audit by a second vendor graded `docs/proof-of-control.md` against t
 | # | Claim | Probe | Pass |
 |---|---|---|---|
 | S33 | README states the one-sentence product, the design rule, a proves / does-not-prove table, exactly the two commands, and points at STATUS.md. | `grep -c 'Custody is provable. Judgment is not.' README.md; grep -c 'bun install && bun run demo' README.md; grep -c 'bundle verify' README.md; grep -c 'STATUS.md' README.md` | all ≥ 1 |
-| S34 | STATUS.md has one row per probed claim S1–S64 and A1–A3; every `done` row names the probe run and the session date. | `grep -cE '^\| (S[0-9]+\|A[0-9]+) ' STATUS.md` | `67` |
+| S34 | STATUS.md has one row per probed claim S1–S66 and A1–A3; every `done` row names the probe run and the session date. | `grep -cE '^\| (S[0-9]+\|A[0-9]+) ' STATUS.md` | `69` |
 | S35 | DECISIONS.md records only decisions made in this repo, each with a rationale; it contains no operator brief. | `grep -ci 'operator brief' DECISIONS.md; grep -c '^### ' DECISIONS.md` | `0`; ≥ 8 |
 | S36 | `bun test` passes and `bun run typecheck` exits 0. | `bun test 2>&1 \| tail -3; bun run typecheck` | 0 fail; exit 0 |
 | S37 | `.github/workflows/ci.yml` pins Bun and Cosign 3.x, runs `bun install --frozen-lockfile`, typecheck, `bun test`, `opa test`, `bun run demo`, `bun tests/probes.ts`, asserts a `*.sigstore.json` exists, and runs `bundle verify`; signing in CI is keyless with a pinned certificate identity and issuer. | `grep -E 'cosign-installer\|cosign-release\|bun-version\|frozen-lockfile\|opa test\|bun run demo\|probes.ts\|sigstore.json\|bundle verify\|certificate-identity' .github/workflows/ci.yml \| wc -l` | ≥ 9 |
